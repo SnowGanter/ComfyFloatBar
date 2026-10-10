@@ -1,0 +1,344 @@
+{
+  "17": {
+    "inputs": {
+      "image": "_100dollar (3)_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Загрузить изображение"
+    }
+  },
+  "29": {
+    "inputs": {
+      "filename_prefix": "Krea2_gemini_vision",
+      "images": [
+        "30:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Сохранить изображение"
+    }
+  },
+  "49": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 3,
+      "multiple": 8
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Выбор разрешения"
+    }
+  },
+  "30:19": {
+    "inputs": {
+      "value": "Recreate this image faithfully with similar composition, mood, and style."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Text String (User Instructions)"
+    }
+  },
+  "30:18": {
+    "inputs": {
+      "value": "You are an expert visual analyst and prompt engineer for Krea 2 Turbo.\n\nAnalyze the provided reference image and convert it into one highly effective English image-generation prompt optimized for Krea 2 Turbo.\n\nPreserve the core visual content of the image: main subject, composition, camera angle, perspective, environment, pose, expression, lighting, color palette, materials, mood, and overall artistic style.\n\nIf the user provides extra instructions, apply them while keeping the original image recognizable unless the user explicitly asks for major changes.\n\nWrite the prompt in clear natural language. Keep spatial relationships explicit and unambiguous. Do not invent unrelated objects, characters, or scenery unless the image or user instructions imply them.\n\nOutput ONLY one cohesive final English prompt paragraph ready to be sent directly into Krea 2 Turbo. No explanations, no markdown, no bullet points, no JSON, no headings, no quotation marks.\n\nKeep the final prompt concise: 60–90 English words, never more than 120 words.\n\nUSER INSTRUCTIONS:\n"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Gemini Vision System Prompt"
+    }
+  },
+  "30:24": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Boolean (Gemini Vision Enhance?)"
+    }
+  },
+  "30:20": {
+    "inputs": {
+      "source": [
+        "30:21",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview Final Prompt"
+    }
+  },
+  "30:27": {
+    "inputs": {
+      "string_a": [
+        "30:20",
+        0
+      ],
+      "string_b": "",
+      "delimiter": ", "
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Concatenate Text (LoRA Trigger Word)"
+    }
+  },
+  "30:23": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Boolean (Enable LoRA?)"
+    }
+  },
+  "30:28": {
+    "inputs": {
+      "switch": [
+        "30:23",
+        0
+      ],
+      "on_false": [
+        "30:20",
+        0
+      ],
+      "on_true": [
+        "30:27",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Final Prompt"
+    }
+  },
+  "30:10": {
+    "inputs": {
+      "unet_name": "krea2_turbo_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Загрузить модель диффузии"
+    }
+  },
+  "30:15": {
+    "inputs": {
+      "lora_name": "krea2_darkbrush.safetensors",
+      "strength_model": 0,
+      "model": [
+        "30:10",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Загрузчик LoRA (Только модель)"
+    }
+  },
+  "30:22": {
+    "inputs": {
+      "switch": [
+        "30:23",
+        0
+      ],
+      "on_false": [
+        "30:10",
+        0
+      ],
+      "on_true": [
+        "30:15",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (Model)"
+    }
+  },
+  "30:11": {
+    "inputs": {
+      "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+      "type": "krea2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Загрузить CLIP"
+    }
+  },
+  "30:12": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Загрузить VAE"
+    }
+  },
+  "30:6": {
+    "inputs": {
+      "text": [
+        "30:28",
+        0
+      ],
+      "clip": [
+        "30:11",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Кодирование текста CLIP (Запрос)"
+    }
+  },
+  "30:13": {
+    "inputs": {
+      "conditioning": [
+        "30:6",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Обнуление кондиционирования"
+    }
+  },
+  "30:5": {
+    "inputs": {
+      "width": [
+        "49",
+        0
+      ],
+      "height": [
+        "49",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Пустое латентное изображение"
+    }
+  },
+  "30:3": {
+    "inputs": {
+      "seed": 11016786522312,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "30:22",
+        0
+      ],
+      "positive": [
+        "30:6",
+        0
+      ],
+      "negative": [
+        "30:13",
+        0
+      ],
+      "latent_image": [
+        "30:5",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "30:8": {
+    "inputs": {
+      "samples": [
+        "30:3",
+        0
+      ],
+      "vae": [
+        "30:12",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Декодировать VAE"
+    }
+  },
+  "30:50": {
+    "inputs": {
+      "string_a": [
+        "30:18",
+        0
+      ],
+      "string_b": [
+        "30:19",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "System + User Instructions"
+    }
+  },
+  "30:21": {
+    "inputs": {
+      "switch": [
+        "30:24",
+        0
+      ],
+      "on_false": [
+        "30:19",
+        0
+      ],
+      "on_true": [
+        "30:51",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Gemini Vision ON/OFF"
+    }
+  },
+  "30:51": {
+    "inputs": {
+      "prompt": [
+        "30:50",
+        0
+      ],
+      "operation_mode": "generate_text",
+      "model_name": "gemini-3.1-flash-lite",
+      "temperature": 0.3,
+      "seed": 0,
+      "sequential_generation": false,
+      "batch_count": 1,
+      "aspect_ratio": "none",
+      "api_provider": "gemini",
+      "external_api_key": "",
+      "chat_mode": false,
+      "clear_history": false,
+      "structured_output": false,
+      "max_images": 1,
+      "max_output_tokens": 192,
+      "use_random_seed": false,
+      "api_call_delay": 0,
+      "Update Models List": null,
+      "Verify API Key": null,
+      "api_key_status": "API key not verified",
+      "images": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "IFGeminiNode",
+    "_meta": {
+      "title": "Gemini Prompt Enhancer — Krea 2"
+    }
+  }
+}

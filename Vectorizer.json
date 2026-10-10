@@ -1,0 +1,7 @@
+{
+  "1": {"inputs": {"image": "placeholder.png"}, "class_type": "LoadImage", "_meta": {"title": "1. Выберите исходное изображение"}},
+  "2": {"inputs": {"image": ["1", 0], "alpha": ["1", 1]}, "class_type": "JoinImageWithAlpha", "_meta": {"title": "2. Сохранить прозрачность"}},
+  "3": {"inputs": {"image": ["2", 0], "max_megapixels": 2.0}, "class_type": "VectorizerLimitPixels", "_meta": {"title": "3. Максимум 2 МП — только уменьшение"}},
+  "4": {"inputs": {"image": ["3", 0], "colors": 64, "file_prefix": "vector_quantized", "mode": "quantized"}, "class_type": "MyVectorizerStable", "_meta": {"title": "4. My Vectorizer — Quantized"}},
+  "5": {"inputs": {"source": ["4", 0]}, "class_type": "PreviewAny", "_meta": {"title": "5. Передать SVG в ComfyFloatBar"}}
+}

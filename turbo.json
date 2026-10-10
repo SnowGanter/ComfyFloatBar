@@ -1,0 +1,267 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "z-image-turbo-gemini",
+      "images": [
+        "30:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Сохранить изображение"
+    }
+  },
+  "49": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 3,
+      "multiple": 8
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Выбор разрешения"
+    }
+  },
+  "30:19": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Text String (User Prompt)"
+    }
+  },
+  "30:18": {
+    "inputs": {
+      "value": "You are an expert prompt engineer for Z-Image text-to-image generation.\n\nRewrite and expand the user's input into one highly effective English image-generation prompt optimized for Z-Image.\n\nPreserve the user's exact concept, intent, subjects, actions, mood, colors, style, and important spatial relationships while improving clarity, composition, atmosphere, textures, lighting, and descriptive precision.\n\nDo not invent unrelated subjects, characters, objects, scenery, or major changes unless the user's text clearly asks for them.\n\nIf the user already gives a detailed prompt, lightly improve and organize it instead of changing the concept.\n\nOutput ONLY one cohesive final English prompt paragraph ready to be sent directly into Z-Image. No explanations, no markdown, no bullet points, no JSON, no headings, no quotation marks.\n\nUSER INPUT:\n"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Gemini System Prompt"
+    }
+  },
+  "30:17": {
+    "inputs": {
+      "string_a": [
+        "30:18",
+        0
+      ],
+      "string_b": [
+        "30:19",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "System + User Prompt"
+    }
+  },
+  "30:16": {
+    "inputs": {
+      "prompt": [
+        "30:17",
+        0
+      ],
+      "operation_mode": "generate_text",
+      "model_name": "gemini-3.1-flash-lite",
+      "temperature": 0.3,
+      "seed": 0,
+      "sequential_generation": false,
+      "batch_count": 1,
+      "aspect_ratio": "none",
+      "api_provider": "gemini",
+      "external_api_key": "",
+      "chat_mode": false,
+      "clear_history": false,
+      "structured_output": false,
+      "max_images": 1,
+      "max_output_tokens": 1024,
+      "use_random_seed": false,
+      "api_call_delay": 0,
+      "Update Models List": null,
+      "Verify API Key": null,
+      "api_key_status": "API key not verified"
+    },
+    "class_type": "IFGeminiNode",
+    "_meta": {
+      "title": "Gemini Prompt Enhancer"
+    }
+  },
+  "30:24": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Boolean (Gemini Prompt Enhance?)"
+    }
+  },
+  "30:21": {
+    "inputs": {
+      "switch": [
+        "30:24",
+        0
+      ],
+      "on_false": [
+        "30:19",
+        0
+      ],
+      "on_true": [
+        "30:16",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Gemini Enhance ON/OFF"
+    }
+  },
+  "30:20": {
+    "inputs": {
+      "source": [
+        "30:21",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview Final Prompt"
+    }
+  },
+  "30:50": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Загрузить CLIP"
+    }
+  },
+  "30:29": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Загрузить VAE"
+    }
+  },
+  "30:28": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Загрузить модель диффузии"
+    }
+  },
+  "30:11": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "30:28",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "Выборка модели AuraFlow"
+    }
+  },
+  "30:27": {
+    "inputs": {
+      "text": [
+        "30:20",
+        0
+      ],
+      "clip": [
+        "30:50",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Кодирование текста CLIP (Запрос)"
+    }
+  },
+  "30:33": {
+    "inputs": {
+      "conditioning": [
+        "30:27",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Обнуление кондиционирования"
+    }
+  },
+  "30:13": {
+    "inputs": {
+      "width": [
+        "49",
+        0
+      ],
+      "height": [
+        "49",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "Пустой SD3LatentImage"
+    }
+  },
+  "30:3": {
+    "inputs": {
+      "seed": 1064458228078039,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "30:11",
+        0
+      ],
+      "positive": [
+        "30:27",
+        0
+      ],
+      "negative": [
+        "30:33",
+        0
+      ],
+      "latent_image": [
+        "30:13",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "30:8": {
+    "inputs": {
+      "samples": [
+        "30:3",
+        0
+      ],
+      "vae": [
+        "30:29",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Декодировать VAE"
+    }
+  }
+}

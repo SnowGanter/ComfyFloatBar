@@ -1,0 +1,6 @@
+pywinauto==0.6.9
+PyAutoGUI==0.9.54
+opencv-python>=4.8
+rapidocr_onnxruntime==1.2.3
+Pillow>=10
+requests>=2.31

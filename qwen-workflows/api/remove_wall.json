@@ -1,0 +1,154 @@
+{
+  "qwen_model": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "qwen_clip": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "qwen_vae": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "qwen_cache": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": [
+        "qwen_model",
+        0
+      ],
+      "device": "auto",
+      "dtype": "default"
+    }
+  },
+  "qwen_encode": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": [
+        "qwen_clip",
+        0
+      ],
+      "vae": [
+        "qwen_vae",
+        0
+      ],
+      "prompt": "This is an RGBA image with transparency. In <image1>, remove ONLY the blank white main feature wall surface and make that wall area fully transparent for wallpaper placement. Preserve the rest of the interior: furniture, plants, curtains, lamps, floor, ceiling, skirting boards, window frames, framed pictures and all foreground objects. Keep their original colors, textures, positions, scale and perspective. White furniture, white artwork and white objects must remain opaque. Do not replace the room with an isolated product. The image has an alpha channel and only the main wall surface is transparent. Output a PNG image.",
+      "negative_prompt": "",
+      "resolution": 1024,
+      "images.image_1": [
+        "qwen_input_1_rgba",
+        0
+      ]
+    }
+  },
+  "qwen_sample": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "qwen_cache",
+        0
+      ],
+      "positive": [
+        "qwen_encode",
+        0
+      ],
+      "negative": [
+        "qwen_encode",
+        1
+      ],
+      "latent_image": [
+        "qwen_encode",
+        2
+      ],
+      "seed": 6280498472179,
+      "steps": 25,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1
+    }
+  },
+  "qwen_decode": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "qwen_sample",
+        0
+      ],
+      "vae": [
+        "qwen_vae",
+        0
+      ]
+    }
+  },
+  "qwen_save": {
+    "class_type": "SaveImageAdvanced",
+    "inputs": {
+      "images": [
+        "qwen_resize",
+        0
+      ],
+      "filename_prefix": "ComfyFloatBar/Qwen21_RemoveBG",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB"
+    }
+  },
+  "qwen_input_1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "mockup.png"
+    }
+  },
+  "qwen_input_1_rgba": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": [
+        "qwen_input_1",
+        0
+      ],
+      "alpha": [
+        "qwen_input_1",
+        1
+      ]
+    }
+  },
+  "qwen_size": {
+    "class_type": "GetImageSize",
+    "inputs": {
+      "image": [
+        "qwen_input_1",
+        0
+      ]
+    }
+  },
+  "qwen_resize": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "qwen_decode",
+        0
+      ],
+      "width": [
+        "qwen_size",
+        0
+      ],
+      "height": [
+        "qwen_size",
+        1
+      ],
+      "upscale_method": "lanczos",
+      "crop": "disabled"
+    }
+  }
+}

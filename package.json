@@ -1,0 +1,89 @@
+{
+  "name": "comfy-float-bar",
+  "version": "1.7.0",
+  "description": "Floating toolbar bridge between Photoshop & ComfyUI with team chat via Tailscale",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:portable": "electron-builder --win portable",
+    "test": "node --test tests/*.test.js && python -m unittest tests/test_topaz_worker.py"
+  },
+  "devDependencies": {
+    "electron": "^43.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3",
+    "uiohook-napi": "^1.5.5"
+  },
+  "build": {
+    "appId": "comfy-float-bar.app",
+    "productName": "ComfyFloatBar",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "renderer.js",
+      "index.html",
+      "chat.html",
+      "chat_renderer.js",
+      "ps_bridge.js",
+      "comfy_bridge.js",
+      "workflows.js",
+      "pattern_pipeline.js",
+      "pattern_photoshop.js",
+      "qwen_workflows.js",
+      "krea2_config.js",
+      "krea2_loras.js",
+      "assets/krea2-loras/**/*",
+      "qwen-workflows/**/*",
+      "krea2.json",
+      "turbo.json",
+      "krea2_img2img.json",
+      "turbo_img2img.json",
+      "three_variations.json",
+      "triptych_to_three.json",
+      "Vectorizer.json",
+      "seedvr2_upscale.json",
+      "mockup_server.py",
+      "icon.png",
+      "package.json",
+      "node_modules/**/*",
+      "edit_workflows.js",
+      "flux2_image_edit.json",
+      "flux2_klein_combine_images.json",
+      "flux_fill_inpaint.json",
+      "topaz-ui.js"
+    ],
+    "win": {
+      "icon": "icon.png",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "extraResources": [
+      {
+        "from": "mini-services/hub-service",
+        "to": "mini-services/hub-service",
+        "filter": [
+          "index.js",
+          "index.ts",
+          "package.json",
+          "node_modules/**/*",
+          "topaz-queue.js",
+          "topaz-worker.py",
+          "topaz-config.example.json",
+          "topaz-requirements.txt",
+          "TOPAZ.md"
+        ]
+      }
+    ]
+  }
+}

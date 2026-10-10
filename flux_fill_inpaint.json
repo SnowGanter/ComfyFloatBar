@@ -1,0 +1,239 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "21:19:18:47:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Сохранить изображение"
+    }
+  },
+  "17": {
+    "inputs": {
+      "image": "clipspace-painted-masked-1786885158986.png [input]"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Загрузить изображение"
+    }
+  },
+  "48:0": {
+    "inputs": {
+      "value": "надень бикини, сделай бикини синего цвета"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "USER PROMPT"
+    }
+  },
+  "21:47:32": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Загрузить VAE"
+    }
+  },
+  "21:47:34": {
+    "inputs": {
+      "clip_name1": "clip_l.safetensors",
+      "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "Двойной загрузчик CLIP"
+    }
+  },
+  "21:47:31": {
+    "inputs": {
+      "unet_name": "flux1-fill-dev-fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Загрузить модель диффузии"
+    }
+  },
+  "21:19:47:3": {
+    "inputs": {
+      "seed": 352949768418279,
+      "steps": 20,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "21:19:18:47:39",
+        0
+      ],
+      "positive": [
+        "21:19:18:47:38",
+        0
+      ],
+      "negative": [
+        "21:19:18:47:38",
+        1
+      ],
+      "latent_image": [
+        "21:19:18:47:38",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "21:19:18:48:1": {
+    "inputs": {
+      "prompt2": "You are an expert prompt enhancer for FLUX.1 Fill [dev] image editing and inpainting. Rewrite the user's request into one precise, effective English image-editing prompt. Preserve the user's exact intent. Focus specifically on the requested change. Preserve all unrelated content, identity, anatomy that does not need modification, pose, composition, camera angle, perspective, colors, lighting, textures, background and visual style unless the user explicitly requests otherwise. Do not invent unrelated objects, subjects, scenery or changes. For defect correction, clearly describe the correct natural result while preserving everything else. Output ONLY the final enhanced English prompt as plain text. No introduction, explanations, markdown, bullet points or quotation marks. USER REQUEST:",
+      "separator": "\n\n",
+      "combine_mode": "prepend",
+      "prompt1": [
+        "48:0",
+        0
+      ]
+    },
+    "class_type": "IFPromptCombiner",
+    "_meta": {
+      "title": "SYSTEM PROMPT + USER PROMPT"
+    }
+  },
+  "21:19:18:47:39": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "21:47:31",
+        0
+      ]
+    },
+    "class_type": "DifferentialDiffusion",
+    "_meta": {
+      "title": "Дифференциальная диффузия"
+    }
+  },
+  "21:19:18:47:23": {
+    "inputs": {
+      "text": [
+        "21:19:18:48:2",
+        0
+      ],
+      "clip": [
+        "21:47:34",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode — Gemini Enhanced"
+    }
+  },
+  "21:19:18:47:26": {
+    "inputs": {
+      "guidance": 30,
+      "conditioning": [
+        "21:19:18:47:23",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "Направление Flux"
+    }
+  },
+  "21:19:18:47:46": {
+    "inputs": {
+      "conditioning": [
+        "21:19:18:47:23",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Обнуление кондиционирования"
+    }
+  },
+  "21:19:18:47:38": {
+    "inputs": {
+      "noise_mask": true,
+      "positive": [
+        "21:19:18:47:26",
+        0
+      ],
+      "negative": [
+        "21:19:18:47:46",
+        0
+      ],
+      "vae": [
+        "21:47:32",
+        0
+      ],
+      "pixels": [
+        "17",
+        0
+      ],
+      "mask": [
+        "17",
+        1
+      ]
+    },
+    "class_type": "InpaintModelConditioning",
+    "_meta": {
+      "title": "Кондиционирование модели инпейнтинга"
+    }
+  },
+  "21:19:18:47:8": {
+    "inputs": {
+      "samples": [
+        "21:19:47:3",
+        0
+      ],
+      "vae": [
+        "21:47:32",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Декодировать VAE"
+    }
+  },
+  "21:19:18:48:2": {
+    "inputs": {
+      "prompt": [
+        "21:19:18:48:1",
+        0
+      ],
+      "operation_mode": "generate_text",
+      "model_name": "gemini-3.1-flash-lite",
+      "temperature": 0.2,
+      "seed": 1386096130,
+      "sequential_generation": false,
+      "batch_count": 1,
+      "aspect_ratio": "none",
+      "api_provider": "gemini",
+      "external_api_key": "",
+      "chat_mode": false,
+      "clear_history": false,
+      "structured_output": false,
+      "max_images": 1,
+      "max_output_tokens": 512,
+      "use_random_seed": false,
+      "api_call_delay": 0,
+      "Update Models List": null,
+      "Verify API Key": null,
+      "api_key_status": "✅ API key is valid (42/42 models for generate_text)"
+    },
+    "class_type": "IFGeminiNode",
+    "_meta": {
+      "title": "GEMINI PROMPT ENHANCER"
+    }
+  }
+}

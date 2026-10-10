@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src * data: blob: file:; style-src 'unsafe-inline'; script-src 'unsafe-eval' 'self'; connect-src * ws: wss:;">
+    <style>
+        /* ====== ROOT LAYOUT: title bar fixed, content scrolls ====== */
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: #e0e0e0; background-color: #2b2b2b; cursor: default; }
+        .hidden { display: none !important; }
+        button, input, select { cursor: pointer; }
+        input[type="text"], textarea { cursor: text; }
+
+        /* ====== APP WRAPPER: flex column, title fixed top, status fixed bottom ====== */
+        .app-wrapper { display: flex; flex-direction: column; height: 100vh; }
+
+        /* ====== TITLE BAR ====== */
+        .title-bar {
+            -webkit-app-region: drag;
+            height: 36px;
+            background: #1e1e1e;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 6px;
+            border-bottom: 1px solid #333;
+            user-select: none;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        .title-bar-left { display: flex; align-items: center; gap: 8px; -webkit-app-region: no-drag; }
+        .title-bar-center { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #aaa; flex: 1; justify-content: center; -webkit-app-region: drag; }
+        .title-bar-center > * { -webkit-app-region: no-drag; pointer-events: auto; } /* children must be no-drag to render reliably */
+        .title-bar-right { display: flex; align-items: center; gap: 2px; -webkit-app-region: no-drag; }
+        body.photoshop-pinned .title-bar, body.photoshop-pinned .title-bar-center { -webkit-app-region: no-drag; }
+
+        /* Chat icon button */
+        .chat-icon-btn {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: #3a3a3a; border: 1px solid #555;
+            display: flex; align-items: center; justify-content: center;
+            color: #4a9eff; font-size: 14px; position: relative;
+            transition: background 0.15s;
+        }
+        .chat-icon-btn:hover { background: #4a4a4a; border-color: #4a9eff; }
+        .chat-icon-btn.attention { background: #d9821c; border-color: #ffc16a; color: #fff; animation: chat-attention-pulse 1s infinite; }
+        @keyframes chat-attention-pulse {
+            0%, 100% { box-shadow: 0 0 0 rgba(217,130,28,0); }
+            50% { box-shadow: 0 0 9px rgba(255,172,65,.9); }
+        }
+        .chat-icon-btn .notif-dot {
+            position: absolute; top: 2px; right: 2px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #e53e3e; display: none;
+        }
+        .chat-icon-btn .notif-dot.visible { display: block; }
+
+        /* Status indicator — shows ComfyUI connection */
+        .status-indicator {
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-right: 4px;
+        }
+        .status-indicator.connected {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #389938;
+        }
+        .status-indicator.disconnected {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #e53e3e;
+        }
+        .status-indicator.checking {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #f6ad55;
+            animation: pulse-checking 1s infinite;
+        }
+        .status-indicator.working {
+            width: 18px; height: 18px; flex: 0 0 18px;
+            display: inline-grid; place-items: center;
+            margin: 0 2px 0 0; padding: 0; line-height: 18px;
+            font-size: 14px; color: #f6ad55;
+            transform-origin: 50% 50%;
+            animation: hourglass-spin 1.2s infinite linear;
+        }
+        @keyframes hourglass-spin {
+            0% { transform: rotate(0deg); opacity: 1; }
+            50% { transform: rotate(180deg); opacity: 0.7; }
+            100% { transform: rotate(360deg); opacity: 1; }
+        }
+        @keyframes pulse-checking {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Online indicator — person bust silhouette + count */
+        .online-indicator {
+            display: none; align-items: center; gap: 3px;
+            margin-left: 4px; font-size: 11px;
+            -webkit-app-region: no-drag;
+        }
+        .online-indicator .person-icon {
+            width: 16px; height: 16px;
+            color: #888;
+            transition: color 0.2s;
+        }
+        .online-indicator.connected .person-icon { color: #389938; }
+        .online-indicator .online-count {
+            font-weight: bold;
+            color: #888;
+            font-size: 11px;
+            line-height: 1;
+        }
+        .online-indicator.connected .online-count { color: #389938; }
+
+        .task-info-text {
+            font-size: 11px; color: #f6ad55; max-width: 140px;
+            line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .last-model-text {
+            max-width: 130px; font-size: 10px; color: #9ac7a1;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* Window controls */
+        .win-btn {
+            width: 30px; height: 28px; display: flex; align-items: center; justify-content: center;
+            background: transparent; border: none; color: #888; font-size: 12px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .win-btn:hover { background: #404040; color: #e0e0e0; }
+        .win-btn.close:hover { background: #e53e3e; color: white; }
+        .win-btn.pin.active { color: #4a9eff; background: #26384d; }
+        .win-btn:disabled { opacity: .3; pointer-events: none; }
+
+        /* ====== SCROLL CONTAINER (scrollbar is HERE, inside title bar boundary) ====== */
+        .scroll-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 10px 10px;
+        }
+        .scroll-container > .tool-section:first-child { margin-top: 8px; }
+
+        /* ====== CUSTOM SCROLLBAR ====== */
+        .scroll-container::-webkit-scrollbar { width: 6px; }
+        .scroll-container::-webkit-scrollbar-track { background: #2b2b2b; }
+        .scroll-container::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        .scroll-container::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        /* ====== STATUS BAR + CANCEL (fixed bottom) ====== */
+        .status-bar-row {
+            display: flex; align-items: center; gap: 8px;
+            border-top: 1px solid #444; padding: 8px 10px;
+            flex-shrink: 0;
+            background: #2b2b2b;
+        }
+        .status-bar { font-size: 12px; color: #888; text-align: center; flex: 1; }
+        .cancel-btn {
+            background: #e53e3e; color: white; border: none; padding: 4px 10px;
+            border-radius: 3px; font-size: 10px; font-weight: bold;
+            display: none; transition: background 0.15s;
+        }
+        .cancel-btn.visible { display: inline-block; }
+        .cancel-btn:hover { background: #c53030; }
+
+        /* ====== EXISTING COMPONENT STYLES ====== */
+        .tool-section { border: 1px solid #444; border-radius: 4px; margin-bottom: 8px; background: #383838; overflow: hidden; }
+        .tool-section:has(> .tool-header.is-open) { overflow: visible; }
+        .tool-header { padding: 8px 10px; font-weight: bold; font-size: 13px; display: flex; justify-content: space-between; background: #404040; user-select: none; }
+        .tool-header.is-open { position: sticky; top: 0; z-index: 8; box-shadow: 0 3px 8px rgba(0,0,0,.35); }
+        .tool-content { padding: 10px; border-top: 1px solid #444; }
+        .sub-tool-section { border: 1px solid #333; border-radius: 3px; margin-top: 12px; background: #2d2d2d; overflow: hidden; }
+        .sub-tool-header { padding: 6px 10px; font-size: 11px; display: flex; justify-content: space-between; background: #333; user-select: none; color: #aaa; }
+        .sub-tool-content { padding: 10px; border-top: 1px solid #333; font-size: 11px; color: #bbb; line-height: 1.4; }
+        .setting-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; width: 100%; }
+        .krea-lora-toggle { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0; font-size:12px; }
+        .krea-lora-toggle input { width:18px; height:18px; accent-color:#4a9eff; }
+        .krea-lora-card { padding:8px; margin:8px 0 12px; border:1px solid #484848; border-radius:7px; background:#252525; }
+        .krea-lora-previews { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-top:7px; }
+        .krea-lora-previews img { width:100%; height:78px; object-fit:cover; border-radius:4px; background:#181818; }
+        .krea-lora-previews img { cursor:zoom-in; }
+        .krea-lora-note { color:#aaa; font-size:10px; line-height:1.35; margin-top:6px; overflow-wrap:anywhere; }
+        .krea-preview-overlay { position:fixed; inset:0; z-index:10000; display:flex; align-items:center; justify-content:center; padding:28px; box-sizing:border-box; background:rgba(0,0,0,.9); -webkit-app-region:no-drag; }
+        .krea-preview-overlay img { max-width:94vw; max-height:88vh; object-fit:contain; border-radius:7px; box-shadow:0 10px 45px #000; }
+        .krea-preview-overlay button { position:absolute; top:12px; right:14px; width:34px; height:34px; border:0; border-radius:50%; background:#444; color:white; font-size:20px; cursor:pointer; }
+        .krea-preview-caption { position:absolute; left:20px; right:20px; bottom:8px; text-align:center; color:#ddd; font-size:12px; }
+        .setting-label { width: 65px; flex-shrink: 0; font-size: 12px; }
+        .setting-slider { flex-grow: 1; flex-shrink: 1; min-width: 40px; accent-color: #4a9eff; }
+        .setting-value { width: 50px; flex-shrink: 0; text-align: right; font-size: 12px; color: #4a9eff; font-weight: bold; }
+        .fade-mask-value { display: inline-flex; align-items: center; justify-content: flex-end; gap: 1px; }
+        .fade-mask-value input { width: 31px; padding: 0; border: 0; border-bottom: 1px dotted #4a9eff; border-radius: 0; outline: none; background: transparent; color: inherit; font: inherit; text-align: right; }
+        .hotkey-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .hotkey-label { width: 65px; flex-shrink: 0; font-size: 12px; }
+        .hotkey-input { flex-grow: 1; text-align: center; font-size: 11px; background: #2a2a2a; border: 1px solid #555; color: #4a9eff; padding: 4px; border-radius: 3px; font-weight: bold; }
+        .hotkey-input.listening { background: #4a9eff; color: #000; border-color: #4a9eff; }
+        .hotkey-input.registration-error { color: #ff8b8b; border-color: #e35d5d; }
+        .hotkey-input:focus { outline: none; border-color: #4a9eff; }
+        .field-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+        .full-btn { width: 100%; padding: 8px; background: #2680eb; color: white; border: none; border-radius: 4px; font-size: 12px; }
+        .full-btn.secondary { background: #505050; }
+        .full-btn.cta { background: #389938; font-weight: bold; }
+        .full-btn:hover { filter: brightness(1.2); }
+        .sticky-action-row { flex-shrink: 0; padding: 7px 10px; background: #323232; border-top: 1px solid #444; }
+        .sticky-action-row.hidden { display: none; }
+        .sticky-action-row .full-btn { min-height: 34px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+        .sticky-action-source {
+            position: absolute !important; width: 1px !important; height: 1px !important;
+            margin: 0 !important; padding: 0 !important; opacity: 0 !important;
+            pointer-events: none !important; overflow: hidden !important; clip-path: inset(50%);
+        }
+        .full-btn.disabled { opacity: 0.5; pointer-events: none; }
+        .generation-mode-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+        .generation-mode-tabs label { display: flex; align-items: center; gap: 5px; min-width: 0; }
+        .generation-source-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+        .generation-source-actions .full-btn { min-width: 0; padding: 7px 4px; font-size: 11px; }
+        .generation-mode-hint { margin: 0 0 8px; padding: 7px 8px; border-left: 3px solid #4a9eff; background: #303030; color: #bdbdbd; font-size: 11px; line-height: 1.35; }
+        .uxui-mode-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+        .uxui-mode-tabs label { justify-content: center; padding: 7px 4px; border: 1px solid #505050; border-radius: 4px; background: #303030; }
+        .uxui-mode-tabs label:has(input:checked) { border-color: #e36b96; background: #4b2a38; color: #fff; }
+        .uxui-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 7px; }
+        .uxui-options-grid .field-group { min-width: 0; }
+        .uxui-reference-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .uxui-reference-actions .full-row { grid-column: 1 / -1; }
+        .uxui-drop-zone { min-height: 86px; }
+        .uxui-drop-zone .image-drop-preview { max-height: 118px; }
+        .uxui-format-card { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; padding: 7px 8px; background: #303030; border: 1px solid #414141; border-radius: 4px; font-size: 11px; color: #aaa; }
+        .uxui-format-card strong { color: #e58bad; }
+        .aplus-mode-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+        .aplus-mode-tabs label { justify-content: center; padding: 7px 3px; border: 1px solid #505050; border-radius: 4px; background: #303030; text-align: center; }
+        .aplus-mode-tabs label:has(input:checked) { border-color: #f2a23a; background: #4c3824; color: #fff; }
+        .aplus-reference-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .aplus-reference-actions .full-row { grid-column: 1 / -1; }
+        .aplus-compliance-note { margin: 0 0 10px; padding: 8px; border-left: 3px solid #f2a23a; background: #342f28; color: #d7c3a4; font-size: 10px; line-height: 1.4; }
+        .aplus-package-summary { display: flex; justify-content: space-between; gap: 8px; padding: 7px 8px; margin-bottom: 10px; border: 1px solid #4f473d; border-radius: 4px; background: #302d29; font-size: 11px; color: #aaa; }
+        .aplus-package-summary strong { color: #f2a23a; text-align: right; }        input[type="text"], textarea, select { width: 100%; box-sizing: border-box; padding: 6px; background: #2a2a2a; color: white; border: 1px solid #555; border-radius: 3px; font-size: 12px; }
+        .popup-block { background: #404040; padding: 10px; border-radius: 4px; margin-bottom: 10px; }
+        .radio-group { display: flex; gap: 15px; margin-bottom: 12px; }
+        .radio-group label { font-size: 12px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+        #mockupAiKindTabs, #mockupArtCountTabs { gap: 6px; }
+        #mockupAiKindTabs label, #mockupArtCountTabs label { justify-content: center; padding: 7px 8px; border: 1px solid #505050; border-radius: 4px; background: #303030; }
+        #mockupAiKindTabs label:has(input:checked), #mockupArtCountTabs label:has(input:checked) { border-color: #4a9eff; background: #26384d; color: #fff; }
+        input[type="radio"] { accent-color: #2680eb; }
+        .mockup-nav { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: center; }
+        .mockup-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; max-height: 250px; overflow-y: auto; padding: 5px; border: 1px solid #444; background: #222; border-radius: 4px; }
+        .mockup-grid::-webkit-scrollbar { width: 4px; }
+        .mockup-grid::-webkit-scrollbar-track { background: #222; }
+        .mockup-grid::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+        .mockup-item-card { cursor: pointer; border: 1px solid #555; border-radius: 4px; overflow: hidden; background: #383838; transition: 0.2s; }
+        .mockup-item-card:hover { border-color: #2680eb; filter: brightness(1.2); }
+        .mockup-item-card img { width: 100%; height: 100px; object-fit: cover; display: block; background: #111; }
+        .mockup-item-card span { display: block; padding: 4px; font-size: 10px; text-align: center; background: #2b2b2b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .folder-card { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px; background: #383838; border: 1px solid #555; border-radius: 4px; cursor: pointer; font-size: 12px; text-align: center; }
+        .folder-card:hover { background: #505050; border-color: #2680eb; }
+        .folder-icon { font-size: 24px; margin-bottom: 5px; }
+        .image-drop-zone { min-height: 100px; border: 1px dashed #666; border-radius: 4px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; padding: 10px; color: #aaa; font-size: 12px; text-align: center; cursor: pointer; margin-bottom: 8px; }
+        .image-drop-zone.drag-over { border-color: #4a9eff; background: #26384d; color: #fff; }
+        .image-drop-preview { max-width: 100%; max-height: 150px; object-fit: contain; }
+        .enhance-action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .enhance-action-grid #btn_enhance_apply, .enhance-action-grid .full-row { grid-column: 1 / -1; }
+        .mask-editor { border: 1px solid #555; border-radius: 4px; padding: 8px; margin-bottom: 10px; background: #242424; }
+        .mask-editor-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; }
+        .mask-canvas-wrap { max-height: 360px; overflow: auto; border: 1px solid #555; background: repeating-conic-gradient(#444 0 25%, #333 0 50%) 50% / 16px 16px; }
+        #enhanceMaskCanvas { display: block; max-width: 100%; cursor: crosshair; touch-action: none; }
+        .enhance-image-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+        .enhance-image-actions .full-row { grid-column: 1 / -1; }
+        .enhance-auto-btn { border: 1px solid #4a9eff; background: #31465f !important; }
+        .enhance-auto-setting { display: flex; align-items: center; gap: 6px; width: 100%; }
+        .enhance-auto-setting input { width: 74px; box-sizing: border-box; padding: 5px; background: #2a2a2a; color: #fff; border: 1px solid #555; border-radius: 3px; text-align: right; }
+        .enhance-auto-setting span { color: #888; font-size: 11px; }
+        .enhance-image-clear.is-inactive { visibility: hidden; pointer-events: none; }
+        .enhance-combine-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 9px; }
+        .enhance-combine-slot { min-width: 0; }
+        .enhance-combine-slot-title { color: #aaa; font-size: 10px; margin: 0 0 4px; }
+        .enhance-combine-slot .image-drop-zone { min-height: 78px; margin-bottom: 5px; padding: 5px; font-size: 10px; }
+        .enhance-combine-slot .image-drop-preview { max-height: 90px; }
+        .enhance-combine-slot .full-btn { min-height: 28px; padding: 5px; font-size: 10px; }
+        .enhance-file-info { color: #8abf92; font-size: 10px; margin: -2px 0 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .expand-direction-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-areas: '. top .' 'left center right' '. bottom .'; gap: 6px; align-items: center; text-align: center; }
+        .expand-direction-grid label { font-size: 11px; color: #bbb; }
+        .expand-direction-grid input { width: 58px; box-sizing: border-box; padding: 5px; background: #2a2a2a; color: #fff; border: 1px solid #555; border-radius: 3px; text-align: center; }
+        .expand-top { grid-area: top; } .expand-left { grid-area: left; } .expand-right { grid-area: right; } .expand-bottom { grid-area: bottom; } .expand-center { grid-area: center; color: #777; font-size: 22px; }
+
+        /* Hub IP input in settings */
+        .hub-field { margin-top: 4px; }
+
+        /* ====== SETUP WIZARD (first-time overlay) ====== */
+        .setup-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85); z-index: 999;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .setup-overlay.hidden { display: none; }
+        .setup-card {
+            background: #2b2b2b; border: 2px solid #4a9eff; border-radius: 12px;
+            padding: 20px; width: 260px; max-width: 95vw;
+            box-shadow: 0 0 30px rgba(74,158,255,0.3);
+        }
+        .setup-title {
+            text-align: center; font-size: 16px; font-weight: bold;
+            color: #4a9eff; margin-bottom: 4px;
+        }
+        .setup-subtitle {
+            text-align: center; font-size: 11px; color: #888; margin-bottom: 16px;
+        }
+        .setup-field { margin-bottom: 14px; }
+        .setup-field label { font-size: 12px; color: #aaa; margin-bottom: 6px; display: block; }
+        .setup-field input[type="text"] {
+            width: 100%; padding: 10px; background: #1e1e1e; color: #e0e0e0;
+            border: 1px solid #555; border-radius: 6px; font-size: 14px;
+            text-align: center;
+        }
+        .setup-field input[type="text"]:focus { border-color: #4a9eff; outline: none; }
+        .setup-folder-display {
+            font-size: 11px; color: #389938; text-align: center; margin-top: 6px;
+            min-height: 16px;
+        }
+        .setup-btn {
+            width: 100%; padding: 12px; background: #389938; color: white;
+            border: none; border-radius: 6px; font-size: 14px; font-weight: bold;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .setup-btn:hover { background: #2d7d2d; }
+        .setup-btn.disabled { background: #555; color: #999; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div class="app-wrapper">
+
+        <!-- ★ CUSTOM TITLE BAR (always visible, never scrolls) -->
+        <div class="title-bar">
+            <div class="title-bar-left">
+                <button id="chatIconBtn" class="chat-icon-btn" title="Открыть чат">
+                    💬<span id="notifDot" class="notif-dot"></span>
+                </button>
+                <span id="userCountText" class="hidden">0</span>
+            </div>
+            <div class="title-bar-center">
+                <span id="statusIndicator" class="status-indicator disconnected"></span>
+                <span id="lastModelText" class="last-model-text" title="Последняя использованная модель">Модель: —</span>
+                <span id="taskInfoText" class="task-info-text hidden"></span>
+            </div>
+            <div class="title-bar-right">
+                <button id="btnPhotoshopPin" class="win-btn pin" title="Закрепить за Photoshop" disabled>📌</button>
+                <button id="btnMinimize" class="win-btn" title="Свернуть">─</button>
+                <button id="btnMaximize" class="win-btn" title="Развернуть">□</button>
+                <button id="btnClose" class="win-btn close" title="Закрыть">✕</button>
+            </div>
+        </div>
+
+        <!-- ★ MAIN CONTENT (scrollable — scrollbar appears HERE only) -->
+        <div style="padding:4px 10px; flex-shrink:0; border-bottom:1px solid #333;">
+            <button id="btn_free_models" class="full-btn secondary" style="margin:0; padding:5px; font-size:11px;" title="Выгрузить модели и очистить кэш на выбранном сервере ComfyUI">Освободить память ComfyUI</button>
+        </div>
+        <div class="scroll-container">
+
+            <!-- Enhance -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_enh"><span>✏️ Enhance</span><span class="arrow">▼</span></div>
+                <div id="sec_enh" class="tool-content">
+                    <div class="field-group"><span>Модель</span><select id="enhanceModel"><option value="qwen21">Qwen</option><option value="flux">FLUX</option></select></div>
+                    <div class="setting-row qwen-steps hidden" data-qwen-model="enhanceModel"><span class="setting-label">Шаги Qwen</span><input type="range" id="qwenStepsEnhance" class="setting-slider qwen-step-slider" min="1" max="80" step="1" value="25"><span id="val_qwenStepsEnhance" class="setting-value">25</span></div>
+                    <div class="radio-group" style="gap:9px; margin-bottom:10px;">
+                        <label><input type="radio" name="enhanceMode" value="image" checked> Улучшить картинку</label>
+                        <label><input type="radio" name="enhanceMode" value="object"> Изменить объект</label>
+                        <label><input type="radio" name="enhanceMode" value="combine"> Совместить картинки</label>
+                    </div>
+
+                    <div id="enhanceImageUI">
+                        <input id="enhanceImageFileInput" type="file" accept="image/*" class="hidden">
+                        <div class="field-group"><span style="font-size:12px;">Пресет prompt</span><select id="enhanceImagePromptPreset"><option value="faithful">Точное восстановление</option><option value="illustration">Иллюстрация / живопись</option><option value="photo">Фото / реализм</option><option value="characters">Лица, руки и персонажи</option><option value="graphics">Графика, линии и текст</option><option value="pattern">Орнамент / паттерн</option><option value="vintage">Винтаж и старая печать</option><option value="custom">Свой prompt</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Prompt</span><textarea id="enhanceImagePrompt" placeholder="Что улучшить в изображении..."></textarea></div>
+                        <div class="enhance-image-actions">
+                            <button id="btn_enhance_image_select" class="full-btn secondary">Выбрать картинку</button>
+                            <button id="btn_enhance_image_from_selection" class="full-btn secondary action-btn">📋 Вставить выделение</button>
+                            <button id="btn_enhance_image_clear" class="full-btn secondary full-row enhance-image-clear is-inactive">Удалить картинку</button>
+                            <button id="btn_enhance_image_apply" class="full-btn cta action-btn full-row">Улучшить картинку</button>
+                            <button id="btn_enhance_image_auto" class="full-btn secondary action-btn full-row enhance-auto-btn">⚡ Авто: весь документ</button>
+                        </div>
+                        <div id="enhanceImageDropZone" class="image-drop-zone" tabindex="0">
+                            <span id="enhanceImageLabel">Перетащите картинку, нажмите для выбора или вставьте Ctrl+V</span>
+                            <img id="enhanceImagePreview" class="image-drop-preview hidden" alt="Картинка для улучшения">
+                        </div>
+                        <div id="enhanceImageFileInfo" class="enhance-file-info"></div>
+                        <div class="sub-tool-section">
+                            <div class="sub-tool-header" data-target="set_enh_image"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                            <div id="set_enh_image" class="sub-tool-content hidden">
+                                <div class="generation-mode-hint">«Улучшить картинку» использует Qwen Detail Enhancer LoRA. «Изменить объект» перерисовывает маску через Qwen Fun ControlNet, сохраняя область вне маски.</div>
+                                <label style="display:flex; align-items:center; gap:6px; margin:8px 0;"><input type="checkbox" id="enhanceColorEnabled" checked>Сохранять исходные цвета</label>
+                                <div class="setting-row"><span class="setting-label">Сила цвета</span><input type="range" id="slider_enh_color" class="setting-slider" min="0" max="100" value="100"><span id="val_enh_color" class="setting-value">100%</span></div>
+                                <div class="field-group"><span>Метод цвета</span><select id="enhanceColorMethod"><option value="mkl">MKL</option><option value="reinhard">Reinhard</option><option value="hm-mkl-hm">Histogram + MKL</option></select></div>
+                                <div class="generation-mode-hint">Для картинки и каждого фрагмента: перенос цвета с исходника перед вставкой. Отключите, если хотите изменить цвет или освещение.</div>
+                                <div class="setting-row"><span class="setting-label">Тайл</span><div class="enhance-auto-setting"><input id="enhanceAutoTileSize" type="number" min="1000" max="6000" step="100" value="4000"><span>px</span></div></div>
+                                <div class="setting-row"><span class="setting-label">Нахлёст</span><div class="enhance-auto-setting"><input id="enhanceAutoOverlap" type="number" min="100" max="2000" step="50" value="400"><span>px</span></div></div>
+                                <div class="generation-mode-hint">Авто обрабатывает весь активный документ по тайлам. Каждый тайл перед ComfyUI уменьшается до 1 MP, затем возвращается в точный размер и координаты Photoshop.</div>
+                                <hr style="border-color:#333; margin:10px 0;">
+                                <div class="hotkey-row"><span class="hotkey-label">Вставить</span><input type="text" class="hotkey-input" id="hk_enhance_image_load" data-btn="btn_enhance_image_from_selection" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="image" value="Не назначена" readonly></div>
+                                <div class="hotkey-row"><span class="hotkey-label">Улучшить</span><input type="text" class="hotkey-input" id="hk_enhance_image_apply" data-btn="btn_enhance_image_apply" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="image" data-prompt="enhanceImagePrompt" value="Не назначена" readonly></div>
+                                <div class="hotkey-row"><span class="hotkey-label">Весь файл</span><input type="text" class="hotkey-input" id="hk_enhance_image_auto" data-btn="btn_enhance_image_auto" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="image" data-prompt="enhanceImagePrompt" value="Не назначена" readonly></div>
+                            </div>
+                        </div>
+                        <div class="sub-tool-section">
+                            <div class="sub-tool-header" data-target="faq_enh_image"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                            <div id="faq_enh_image" class="sub-tool-content hidden"><b>Улучшить картинку:</b> Qwen использует Detail Enhancer LoRA. Trigger добавляется к prompt автоматически; включение и сила LoRA находятся в глобальных настройках.<br><br><b>Изменить объект:</b> закрасьте нужную область маской. Qwen Fun ControlNet полностью перестраивает только эту область, а всё вне маски берётся из исходника.<br><br><b>Авто: весь документ:</b> приложение проходит активный документ перекрывающимися тайлами, возвращает их в точные координаты и складывает в одну группу Photoshop. Нахлёст и слой-маски смягчают стыки.<br><br>Каждый рабочий вход Qwen ограничен 1 MP. Для отдельных фрагментов крупнее 1 MP после Enhance используйте Upscale.</div>
+                        </div>
+                    </div>
+                    <div id="enhanceObjectUI" class="hidden">
+                        <div class="field-group"><textarea id="enhancePrompt" placeholder="Что исправить в выделении...">Fix details</textarea></div>
+                        <div class="enhance-action-grid">
+                            <button id="btn_enhance_load" class="full-btn secondary action-btn">Вставить выделение из Photoshop</button>
+                            <button id="btn_enhance_clear_mask" class="full-btn secondary action-btn disabled">Очистить маску</button>
+                            <button id="btn_enhance_apply" class="full-btn cta action-btn disabled">Изменить объект</button>
+                        </div>
+                        <div id="enhanceMaskEditor" class="mask-editor hidden">
+                            <div class="mask-editor-toolbar"><span>Кисть</span><input id="enhanceBrushSize" type="range" min="2" max="250" value="40" class="setting-slider"><span id="enhanceBrushSizeValue" class="setting-value">40 px</span></div>
+                            <div class="mask-canvas-wrap"><canvas id="enhanceMaskCanvas"></canvas></div>
+                            <div style="font-size:11px; color:#aaa; margin:8px 0;">Закрасьте белой кистью область, которую нужно изменить. Она будет передана выбранной модели как маска.</div>
+                        </div>
+                        <div class="sub-tool-section"><div class="sub-tool-header" data-target="set_enh_object"><span>⚙️ Настройки</span><span class="arrow">▼</span></div><div id="set_enh_object" class="sub-tool-content hidden">
+                            <hr style="border-color:#333; margin:10px 0;">
+                            <div class="hotkey-row"><span class="hotkey-label">Вставить</span><input type="text" class="hotkey-input" id="hk_enhance_load" data-btn="btn_enhance_load" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="object" value="Не назначена" readonly></div>
+                            <div class="hotkey-row"><span class="hotkey-label">Очистить</span><input type="text" class="hotkey-input" id="hk_enhance_clear" data-btn="btn_enhance_clear_mask" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="object" value="Не назначена" readonly></div>
+                            <div class="hotkey-row"><span class="hotkey-label">Изменить</span><input type="text" class="hotkey-input" id="hk_enhance_apply" data-btn="btn_enhance_apply" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="object" data-prompt="enhancePrompt" value="Не назначена" readonly></div>
+                        </div></div>
+                        <div class="sub-tool-section">
+                            <div class="sub-tool-header" data-target="faq_enh_object"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                            <div id="faq_enh_object" class="sub-tool-content hidden">Вставьте выделение из Photoshop, закрасьте область, которую нужно изменить, и отправьте её выбранной модели. Изображение и маска принудительно ограничены 1 MP. Если ваш фрагмент больше 1 MP, сначала используйте Upscale — так сохранится больше деталей. Результат встанет на место исходного выделения с редактируемой маской слоя.</div>
+                        </div>
+                    </div>
+
+                    <div id="enhanceCombineUI" class="hidden">
+                        <input id="enhanceCombineFirstFileInput" type="file" accept="image/*" class="hidden">
+                        <input id="enhanceCombineSecondFileInput" type="file" accept="image/*" class="hidden">
+                        <div class="field-group"><span style="font-size:12px;">Prompt</span><textarea id="enhanceCombinePrompt" placeholder="Как совместить две картинки...">Combine these two images naturally</textarea></div>
+                        <div class="enhance-action-grid">
+                            <button id="btn_enhance_combine_first_select" class="full-btn secondary">Первая: выбрать</button>
+                            <button id="btn_enhance_combine_second_select" class="full-btn secondary">Вторая: выбрать</button>
+                            <button id="btn_enhance_combine_first_from_selection" class="full-btn secondary action-btn">📋 Первая: выделение</button>
+                            <button id="btn_enhance_combine_second_from_selection" class="full-btn secondary action-btn">📋 Вторая: выделение</button>
+                            <button id="btn_enhance_combine_first_clear" class="full-btn secondary hidden">Очистить первую</button>
+                            <button id="btn_enhance_combine_second_clear" class="full-btn secondary hidden">Очистить вторую</button>
+                            <button id="btn_enhance_combine_apply" class="full-btn cta action-btn full-row">Совместить картинки</button>
+                        </div>
+                        <div class="enhance-combine-grid">
+                            <div class="enhance-combine-slot">
+                                <div class="enhance-combine-slot-title">Первая картинка</div>
+                                <div id="enhanceCombineFirstDropZone" class="image-drop-zone" tabindex="0"><span id="enhanceCombineFirstLabel">Добавить</span><img id="enhanceCombineFirstPreview" class="image-drop-preview hidden" alt="Первая картинка"></div>
+                                <div id="enhanceCombineFirstFileInfo" class="enhance-file-info"></div>
+                            </div>
+                            <div class="enhance-combine-slot">
+                                <div class="enhance-combine-slot-title">Вторая картинка</div>
+                                <div id="enhanceCombineSecondDropZone" class="image-drop-zone" tabindex="0"><span id="enhanceCombineSecondLabel">Добавить</span><img id="enhanceCombineSecondPreview" class="image-drop-preview hidden" alt="Вторая картинка"></div>
+                                <div id="enhanceCombineSecondFileInfo" class="enhance-file-info"></div>
+                            </div>
+                        </div>
+                        <div class="sub-tool-section">
+                            <div class="sub-tool-header" data-target="set_enh_combine"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                            <div id="set_enh_combine" class="sub-tool-content hidden">
+                                <hr style="border-color:#333; margin:10px 0;">
+                                <div class="hotkey-row"><span class="hotkey-label">Первая</span><input type="text" class="hotkey-input" id="hk_enhance_combine_first" data-btn="btn_enhance_combine_first_from_selection" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="combine" value="Не назначена" readonly></div>
+                                <div class="hotkey-row"><span class="hotkey-label">Вторая</span><input type="text" class="hotkey-input" id="hk_enhance_combine_second" data-btn="btn_enhance_combine_second_from_selection" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="combine" value="Не назначена" readonly></div>
+                                <div class="hotkey-row"><span class="hotkey-label">Совместить</span><input type="text" class="hotkey-input" id="hk_enhance_combine_apply" data-btn="btn_enhance_combine_apply" data-section="sec_enh" data-radio-name="enhanceMode" data-radio="combine" data-prompt="enhanceCombinePrompt" value="Не назначена" readonly></div>
+                            </div>
+                        </div>
+                        <div class="sub-tool-section">
+                            <div class="sub-tool-header" data-target="faq_enh_combine"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                            <div id="faq_enh_combine" class="sub-tool-content hidden">Добавьте две картинки и напишите, как их объединить. Маска не используется: выбранная модель получает оба изображения как img2img-референсы и создаёт один объединённый результат. Каждая входная картинка принудительно ограничена 1 MP. Если ваш фрагмент больше 1 MP, сначала используйте Upscale — так сохранится больше деталей.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Удаление фона -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_rmbg"><span>✂️ Remove Background</span><span class="arrow">▼</span></div>
+                <div id="sec_rmbg" class="tool-content">
+                    <div class="field-group"><span>Модель</span><select id="rmbgModel"><option value="birefnet">BiRefNet</option><option value="qwen21">Qwen</option></select></div>
+                    <div class="setting-row qwen-steps hidden" data-qwen-model="rmbgModel"><span class="setting-label">Шаги Qwen</span><input type="range" id="qwenStepsRemoveBg" class="setting-slider qwen-step-slider" min="1" max="80" step="1" value="25"><span id="val_qwenStepsRemoveBg" class="setting-value">25</span></div>
+                    <button id="btn_rmbg" class="full-btn secondary action-btn">Удалить фон выделенной области</button>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="set_rmbg"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                        <div id="set_rmbg" class="sub-tool-content hidden">
+                            <div id="rmbgQwenSettings" class="hidden">
+                                <div class="field-group"><span>Что оставить на прозрачном фоне</span><textarea id="rmbgQwenPrompt" rows="5"></textarea></div>
+                                <div style="font-size:11px; color:#888; margin-bottom:10px;">Qwen создаёт PNG с прозрачностью. Можно уточнить, какой объект сохранить. Генеративная обработка может изменять мелкие детали.</div>
+                            </div>
+                            <div id="rmbgBiRefSettings">
+                            <div class="field-group">
+                                <span>Режим края</span>
+                                <select id="rmbgEdgePreset">
+                                    <option value="clean" selected>Универсальный — чистый край</option>
+                                    <option value="detail">Тонкие детали / ветки</option>
+                                    <option value="graphic">Графика / жёсткий контур</option>
+                                    <option value="soft">Волосы / мех / мягкий край</option>
+                                    <option value="raw">Исходная маска BiRefNet</option>
+                                </select>
+                            </div>
+                            <div class="setting-row"><span class="setting-label">Очистка</span><input type="range" id="slider_rmbg_cleanup" class="setting-slider" min="0" max="100" value="65"><span id="val_rmbg_cleanup" class="setting-value">65%</span></div>
+                            <div class="setting-row"><span class="setting-label">Детали</span><input type="range" id="slider_rmbg_detail" class="setting-slider" min="0" max="100" value="65"><span id="val_rmbg_detail" class="setting-value">65%</span></div>
+                            <div class="setting-row"><span class="setting-label">Вернуть</span><input type="range" id="slider_rmbg_edge_shift" class="setting-slider" min="0" max="3" step="1" value="0"><span id="val_rmbg_edge_shift" class="setting-value">0 px</span></div>
+                            <label style="display:flex; align-items:center; gap:6px; margin:2px 0 10px; cursor:pointer;"><input type="checkbox" id="rmbgDecontaminate" checked> Убирать цветной ореол</label>
+                            <div style="color:#888; font-size:10px; line-height:1.4; margin:-2px 0 10px;">Значение 1–3 px только расширяет маску и помогает вернуть потерянный край. Сжатие, которое съедало тонкие ветки, больше не используется.</div>
+                            </div>
+                            <hr style="border-color:#333; margin:10px 0;">
+                            <div class="hotkey-row"><span class="hotkey-label">Бинд</span><input type="text" class="hotkey-input" id="hk_rmbg" data-btn="btn_rmbg" data-section="sec_rmbg" value="Не назначена" readonly></div>
+                        </div>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_rmbg"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_rmbg" class="sub-tool-content hidden">Для Qwen можно уточнить объект в prompt: результат сохраняется с прозрачностью. Настройки края ниже относятся к BiRefNet.<br><br>Режимы переключают специализированные модели BiRefNet: <b>Универсальный</b> — BiRefNet General, <b>Тонкие детали</b> — HR Matting, <b>Графика</b> — ToonOut, <b>Волосы / мех</b> — Matting. Для рисунка с цветком выбирайте <b>Графика</b>.<br><br>Большие изображения обрабатываются автоматически в двух уровнях: полный проход сохраняет общий силуэт, а перекрывающиеся тайлы возвращают мелкие ветки и края без уменьшения всего файла до 1024 px. Ложные области на стыках отсекаются глобальной маской.<br><br><b>Очистка</b> делает распознавание строже, а <b>Детали</b> возвращают слабые элементы; параметры работают внутри BiRefNet, без последующего жёсткого обрезания PNG. <b>Вернуть</b> только расширяет край на 1–3 px. <b>Убирать цветной ореол</b> уточняет цвета один раз по целому изображению, поэтому тайловых цветовых швов не возникает. Режим <b>Исходная маска</b> оставлен для сравнения со старым графом.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Генерация -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_gen"><span>🎨 Генерация</span><span class="arrow">▼</span></div>
+                <div id="sec_gen" class="tool-content">
+                    <div class="radio-group generation-mode-tabs" name="genMode">
+                        <label><input type="radio" name="genMode" value="normal" checked> Обычная</label>
+                        <label><input type="radio" name="genMode" value="img2img"> img2img</label>
+                        <label><input type="radio" name="genMode" value="variations"> 1 → 3 вариации</label>
+                        <label><input type="radio" name="genMode" value="triptych"> Триптих → 3</label>
+                    </div>
+                    <div id="genNormalPromptGroup" class="field-group"><span style="font-size:12px;">Prompt</span><textarea id="promptInput" placeholder="Описание..."></textarea><label style="display:flex; align-items:center; gap:6px; margin-top:7px; font-size:12px; cursor:pointer;"><input type="checkbox" id="genSeamlessPattern"> Бесшовный паттерн</label>
+                        <div id="genPatternAssemblyOptions" class="hidden" style="margin-top:8px; font-size:12px;">
+                            <label style="display:flex; gap:6px; cursor:pointer;"><input type="checkbox" id="genPatternAssembly" checked> Исправить и собрать элементы ×4</label>
+                            <div style="margin-top:5px; color:#aaa; font-size:10px; line-height:1.4;">Gemini опишет элементы, их позы и цвета, задаст общий стиль и сверит промпты с исходником. Krea 2 создаст элементы отдельно. Перед вырезанием Gemini проверит стиль, позы, цвета и форму; при ошибках — до двух повторов. SeedVR2 увеличит элементы PNG и фон ×4. В Photoshop картинки вставляются отдельными слоями в исходном размере: расположите их самостоятельно. Без документа создаётся 40 × 40 дюймов, 300 dpi. Сборка может занять много времени.</div>
+                        </div>
+                    </div>
+                    <button id="btn_pattern_resume" class="full-btn secondary hidden">Продолжить сохранённую сборку паттерна</button>
+                    <button id="btn_gen" class="full-btn action-btn">Generate New</button>
+                    <div id="genImg2ImgUI" class="hidden">
+                        <input id="img2imgFileInput" type="file" accept="image/*" class="hidden">
+                        <div id="img2imgDropZone" class="image-drop-zone" tabindex="0">
+                            <span id="img2imgImageLabel">Drop an image here, click to choose it, or paste it with Ctrl+V</span>
+                            <img id="img2imgPreview" class="image-drop-preview hidden" alt="Selected image preview">
+                        </div>
+                        <div style="font-size:10px; color:#8abf92; margin:-4px 0 8px;">Изображения больше 1 MP автоматически уменьшаются только для ComfyUI. Оригинал не изменяется.</div>
+                        <button id="btn_img2img_select" class="full-btn secondary" style="margin-bottom: 8px;">Choose image</button>
+                        <button id="btn_img2img_from_selection" class="full-btn secondary action-btn" style="margin-bottom: 8px;">📋 Вставить выделенное</button>
+                        <button id="btn_img2img_clear" class="full-btn secondary hidden" style="margin-bottom: 12px;">Remove image</button>
+                        <div class="field-group"><span style="font-size:12px;">Prompt</span><textarea id="img2imgPrompt" placeholder="What to change in the image..."></textarea><label style="display:flex; align-items:center; gap:6px; margin-top:7px; font-size:12px; cursor:pointer;"><input type="checkbox" id="img2imgSeamlessPattern"> Бесшовный паттерн</label>
+                            <div id="img2imgPatternAssemblyOptions" class="hidden" style="margin-top:8px; font-size:12px;">
+                                <label style="display:flex; gap:6px; cursor:pointer;"><input type="checkbox" id="img2imgPatternAssembly" checked> Исправить и собрать элементы ×4</label>
+                                <div style="margin-top:5px; color:#aaa; font-size:10px; line-height:1.4;">После генерации: анализ и исправления Gemini → отдельные элементы Krea 2 → прозрачные PNG → элементы и фон SeedVR2 ×4 → слои Photoshop. Без документа: 40 × 40 дюймов, 300 dpi.</div>
+                            </div>
+                        </div>
+                        <button id="btn_img2img" class="full-btn cta action-btn">Generate img2img</button>
+                    </div>
+                    <div id="genVariationsUI" class="hidden">
+                        <div id="variationModeHint" class="generation-mode-hint"></div>
+                        <input id="variationFileInput" type="file" accept="image/*" class="hidden">
+                        <div class="generation-source-actions">
+                            <button id="btn_variation_select" class="full-btn secondary">📎 Файл</button>
+                            <button id="btn_variation_from_selection" class="full-btn secondary action-btn">📋 Photoshop</button>
+                            <button id="btn_variation_clear" class="full-btn secondary disabled" disabled>✕ Убрать</button>
+                        </div>
+                        <div id="variationDropZone" class="image-drop-zone" tabindex="0">
+                            <span id="variationImageLabel">Перетащите картинку, нажмите для выбора или вставьте Ctrl+V</span>
+                            <img id="variationPreview" class="image-drop-preview hidden" alt="Предпросмотр исходного изображения">
+                        </div>
+                        <div class="field-group"><span style="font-size:12px;">Дополнительный prompt <span style="color:#777;">(необязательно)</span></span><textarea id="variationPrompt" placeholder="Например: сохранить винтажную акварель, убрать весь текст..."></textarea></div>
+                        <button id="btn_generate_variations" class="full-btn cta action-btn">Создать 3 вариации</button>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="set_gen"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                        <div id="set_gen" class="sub-tool-content hidden">
+                            <div id="normalGenSettingsBlock">
+                                <div class="field-group"><span style="font-size:12px;">Модель</span><select id="genModel"><option value="qwen21">Qwen</option><option value="turbo">Turbo</option><option value="krea2">Krea 2</option></select></div>
+                    <div class="setting-row qwen-steps hidden" data-qwen-model="genModel"><span class="setting-label">Шаги Qwen</span><input type="range" id="qwenStepsGenerate" class="setting-slider qwen-step-slider" min="1" max="80" step="1" value="25"><span id="val_qwenStepsGenerate" class="setting-value">25</span></div>
+                                <div id="modelGenSettings">
+                                    <div id="genModelSettingsTitle" style="font-size: 11px; color: #4a9eff; margin-bottom: 8px; font-weight: bold;">Параметры Turbo</div>
+                                    <div class="setting-row"><span class="setting-label">Формат</span><input type="range" class="setting-slider" min="0" max="7" step="1" value="6" id="slider_krea_aspect"><span class="setting-value" id="val_krea_aspect">16:9</span></div>
+                                    <div id="kreaResolutionHint" style="font-size: 11px; color: #888; text-align: right; margin: -6px 0 10px;"></div>
+                                    <div class="setting-row"><span class="setting-label">Megapixels</span><input type="range" class="setting-slider" min="1" max="3" step="1" value="3" id="slider_krea_megapixels"><span class="setting-value" id="val_krea_megapixels">3 MP</span></div>
+                                    <div class="field-group"><span style="font-size:12px;">Seed</span><input type="text" id="kreaSeed" inputmode="numeric" spellcheck="false"></div>
+                                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer;"><input type="checkbox" id="kreaPromptEnhance" checked> Prompt Enhance</label>
+                                </div>
+                                <hr style="border-color: #333; margin: 10px 0;">
+                                <div class="hotkey-row"><span class="hotkey-label">Бинд</span><input type="text" class="hotkey-input" id="hk_gen_n" data-btn="btn_gen" data-section="sec_gen" data-radio="normal" data-radio-name="genMode" data-prompt="promptInput" value="Не назначена" readonly></div>
+                            </div>
+                            <div id="img2imgGenSettingsBlock" class="hidden">
+                                <div class="field-group"><span style="font-size:12px;">Модель</span><select id="img2imgModel"><option value="qwen21">Qwen</option><option value="turbo">Turbo</option><option value="krea2">Krea 2</option></select></div>
+                    <div class="setting-row qwen-steps hidden" data-qwen-model="img2imgModel"><span class="setting-label">Шаги Qwen</span><input type="range" id="qwenStepsImg2Img" class="setting-slider qwen-step-slider" min="1" max="80" step="1" value="25"><span id="val_qwenStepsImg2Img" class="setting-value">25</span></div>
+                                <div id="img2imgModelSettings">
+                                    <div id="img2imgModelSettingsTitle" style="font-size: 11px; color: #4a9eff; margin-bottom: 8px; font-weight: bold;">Параметры Turbo img2img</div>
+                                    <div class="setting-row"><span class="setting-label">Формат</span><input type="range" class="setting-slider" min="0" max="7" step="1" value="6" id="slider_img2img_aspect"><span class="setting-value" id="val_img2img_aspect">16:9</span></div>
+                                    <div id="img2imgResolutionHint" style="font-size: 11px; color: #888; text-align: right; margin: -6px 0 10px;"></div>
+                                    <div class="setting-row"><span class="setting-label">Megapixels</span><input type="range" class="setting-slider" min="1" max="3" step="1" value="3" id="slider_img2img_megapixels"><span class="setting-value" id="val_img2img_megapixels">3 MP</span></div>
+                                    <div class="field-group"><span style="font-size:12px;">Seed</span><input type="text" id="img2imgSeed" inputmode="numeric" spellcheck="false"></div>
+                                    <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer;"><input type="checkbox" id="img2imgPromptEnhance" checked> Prompt Enhance</label>
+                                </div>
+                                <hr style="border-color: #333; margin: 10px 0;">
+                                <div class="hotkey-row"><span class="hotkey-label">Бинд (img2img)</span><input type="text" class="hotkey-input" id="hk_gen_i2i" data-btn="btn_img2img" data-section="sec_gen" data-radio="img2img" data-radio-name="genMode" data-prompt="img2imgPrompt" value="Не назначена" readonly></div>
+                            </div>
+                            <div id="variationsGenSettingsBlock" class="hidden">
+                                <div class="field-group"><span style="font-size:12px;">Модель</span><select id="variationModel"><option value="turbo">Turbo</option><option value="krea2">Krea 2</option></select></div>
+                                <div id="variationModelSettingsTitle" style="font-size: 11px; color: #4a9eff; margin-bottom: 8px; font-weight: bold;">Параметры Turbo</div>
+                                <div class="setting-row"><span class="setting-label">Формат</span><input type="range" class="setting-slider" min="0" max="7" step="1" value="1" id="slider_variation_aspect"><span class="setting-value" id="val_variation_aspect">2:3</span></div>
+                                <div id="variationResolutionHint" style="font-size: 11px; color: #888; text-align: right; margin: -6px 0 10px;"></div>
+                                <div class="setting-row"><span class="setting-label">Megapixels</span><input type="range" class="setting-slider" min="1" max="3" step="1" value="1" id="slider_variation_megapixels"><span class="setting-value" id="val_variation_megapixels">1 MP</span></div>
+                                <div id="variationSimilarityGroup" class="setting-row"><span class="setting-label">Сходство</span><input type="range" class="setting-slider" min="50" max="95" step="1" value="75" id="slider_variation_similarity"><span class="setting-value" id="val_variation_similarity">75%</span></div>
+                                <div class="field-group"><span style="font-size:12px;">Базовый seed</span><input type="text" id="variationSeed" inputmode="numeric" spellcheck="false"></div>
+                                <div class="field-group"><span style="font-size:12px;">Номер серии</span><input type="text" id="variationSeriesNumber" inputmode="numeric" spellcheck="false" placeholder="Авто — следующий общий номер"><div style="font-size:10px; color:#888; margin-top:4px;">Пусто — новый общий номер. Например, 128 или p128 — повторно сохранить p128_l / p128_c / p128_r. Ручной номер сохраняется, очистите поле для возврата в авто.</div></div>
+                                <hr style="border-color: #333; margin: 10px 0;">
+                                <div class="hotkey-row"><span class="hotkey-label">Бинд</span><input type="text" class="hotkey-input" id="hk_gen_variations" data-btn="btn_generate_variations" data-section="sec_gen" data-radio="variations" data-radio-name="genMode" value="Не назначена" readonly></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_gen"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_gen" class="sub-tool-content hidden">
+                            «1 → 3 вариации» принимает одну отдельную картину и создаёт три согласованных дизайна: близкий вариант, новую композицию и более свободную часть серии.<br><br>
+                            «Триптих → 3» принимает фото или мокап с тремя картинами. Gemini отдельно анализирует левую, центральную и правую работу, игнорируя рамки, стену, интерьер и блики, после чего создаются три самостоятельных изображения.<br><br>
+                            В обоих режимах временная входная копия автоматически уменьшается до 1 MP, оригинал не меняется. Все три PNG сохраняются в Generations и открываются отдельными документами Photoshop. Дополнительный prompt применяется ко всем трём результатам.<br><br>
+                            В настройке «Номер серии» можно указать старый номер неудачной генерации: например, 128 или p128. Тогда файлы p128_l, p128_c и p128_r будут заменены без увеличения общего счётчика. Оставьте поле пустым, чтобы получить следующий общий номер через Hub.<br><br>
+                            Обычный img2img также отправляет в ComfyUI временную копию размером не более 1 MP с сохранением исходных пропорций. Края изображения не обрезаются, оригинальный файл не изменяется.<br><br>
+                            Чекбокс «Бесшовный паттерн» в обычной генерации и img2img добавляет слова pattern, seamless texture и фиксирует формат 1:1 и 1 MP.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UX/UI -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_uxui"><span>♥ UX/UI</span><span class="arrow">▼</span></div>
+                <div id="sec_uxui" class="tool-content">
+                    <div class="radio-group generation-mode-tabs uxui-mode-tabs">
+                        <label><input type="radio" name="uxuiMode" value="web" checked> Веб-сайт</label>
+                        <label><input type="radio" name="uxuiMode" value="app"> Приложение</label>
+                        <label><input type="radio" name="uxuiMode" value="game"> Игра</label>
+                        <label><input type="radio" name="uxuiMode" value="icon"> Иконки</label>
+                    </div>
+                    <div id="uxuiModeHint" class="generation-mode-hint">Проектирование сайта: от лендинга до интернет-магазина и SaaS-панели.</div>
+
+                    <div class="field-group">
+                        <span style="font-size:12px;">Задача / дополнительный prompt</span>
+                        <textarea id="uxuiPrompt" placeholder="Например: сервис доставки цветов для молодой аудитории, акцент на быстрый заказ..."></textarea>
+                    </div>
+
+                    <div class="uxui-options-grid">
+                        <div id="uxuiStyleField" class="field-group"><span style="font-size:12px;">Визуальный стиль</span><select id="uxuiStyle"><optgroup label="Универсальные"><option value="auto">Авто по задаче / референсу</option><option value="clean">Современный минимализм</option><option value="premium">Премиальный editorial</option><option value="glass">Glass / мягкие градиенты</option><option value="bold">Смелый цветной</option><option value="retro">Retro tech</option><option value="fantasy">Стилизованный fantasy</option></optgroup><optgroup id="uxuiWebStyleGroup" label="Готовые конструкции сайтов"><option value="web_neobrutalism">Neobrutalism</option><option value="web_bento">Bento Grid</option><option value="web_swiss">Swiss / International</option><option value="web_editorial">Editorial Magazine</option><option value="web_saas">SaaS Conversion</option><option value="web_ecommerce">Editorial E-commerce</option><option value="web_dark_tech">Dark Tech</option><option value="web_organic">Organic / Rounded</option><option value="web_y2k">Y2K / Retro Web</option><option value="web_luxury">Minimal Luxury</option></optgroup></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Тема</span><select id="uxuiTheme"><option value="auto">Авто</option><option value="light">Светлая</option><option value="dark">Тёмная</option><option value="brand">По цветам референса</option><option value="contrast">Контрастная</option></select></div>
+                        <div id="uxuiOutputField" class="field-group"><span style="font-size:12px;">Результат</span><select id="uxuiOutput"><option value="single">Один готовый экран</option><option value="flow3">Сценарий из 3 экранов</option><option value="kit">UI kit / компоненты</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Плотность</span><select id="uxuiDensity"><option value="balanced">Сбалансированная</option><option value="airy">Воздушная</option><option value="dense">Информационно плотная</option></select></div>
+                        <div id="uxuiLanguageField" class="field-group"><span style="font-size:12px;">Язык интерфейса</span><select id="uxuiLanguage"><option value="auto">По prompt</option><option value="ru">Русский</option><option value="en">English</option></select></div>
+                    </div>
+
+                    <div id="uxuiWebOptions" class="uxui-options-grid">
+                        <div class="field-group"><span style="font-size:12px;">Тип сайта</span><select id="uxuiWebType"><option value="landing">Landing page</option><option value="ecommerce">Интернет-магазин</option><option value="saas">SaaS / dashboard</option><option value="portfolio">Портфолио</option><option value="booking">Бронирование / услуги</option><option value="media">Медиа / блог</option><option value="admin">Admin panel</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Экран</span><select id="uxuiWebViewport"><option value="desktop">Desktop 1440</option><option value="mobile">Mobile 390</option><option value="responsive">Responsive-презентация</option></select></div>
+                    </div>
+
+                    <div id="uxuiAppOptions" class="uxui-options-grid hidden">
+                        <div class="field-group"><span style="font-size:12px;">Тип приложения</span><select id="uxuiAppType"><option value="productivity">Продуктивность</option><option value="ecommerce">Магазин / доставка</option><option value="fintech">Финансы</option><option value="social">Социальное</option><option value="health">Здоровье / спорт</option><option value="travel">Путешествия</option><option value="media">Музыка / видео</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Платформа</span><select id="uxuiAppPlatform"><option value="ios">iOS</option><option value="android">Android</option><option value="desktop">Desktop</option><option value="tablet">Tablet</option></select></div>
+                    </div>
+
+                    <div id="uxuiGameOptions" class="uxui-options-grid hidden">
+                        <div class="field-group"><span style="font-size:12px;">Экран игры</span><select id="uxuiGameType"><option value="main_menu">Главное меню</option><option value="hud">HUD / игровой экран</option><option value="inventory">Инвентарь</option><option value="character">Выбор персонажа</option><option value="skills">Дерево навыков</option><option value="map">Карта / задания</option><option value="store">Магазин / battle pass</option><option value="settings">Настройки</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Платформа</span><select id="uxuiGamePlatform"><option value="pc">PC</option><option value="console">Console</option><option value="mobile">Mobile</option><option value="tablet">Tablet</option></select></div>
+                    </div>
+
+                    <div id="uxuiIconOptions" class="uxui-options-grid hidden">
+                        <div class="field-group"><span style="font-size:12px;">Для чего</span><select id="uxuiIconTarget"><option value="app">Приложение</option><option value="web">Веб-сайт</option><option value="game">Игра</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Назначение</span><select id="uxuiIconPurpose"><optgroup label="Универсальные"><option value="brand">Главная / брендовая</option><option value="actions">Действия / команды</option><option value="status">Статусы / состояния</option></optgroup><optgroup label="Приложение"><option value="app_launcher">Launcher / App Store</option><option value="app_feature">Функции приложения</option><option value="app_toolbar">Toolbar / навигация</option><option value="app_notification">Уведомления</option></optgroup><optgroup label="Веб-сайт"><option value="web_favicon">Favicon / бренд</option><option value="web_navigation">Навигация сайта</option><option value="web_category">Категории каталога</option><option value="web_feature">Преимущества / услуги</option></optgroup><optgroup label="Игра"><option value="game_ability">Навыки / способности</option><option value="game_inventory">Предметы / инвентарь</option><option value="game_currency">Валюта / награды</option><option value="game_achievement">Достижения</option><option value="game_faction">Фракции / классы</option></optgroup></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Стиль иконки</span><select id="uxuiIconStyle"><option value="platform">Авто под платформу</option><option value="ios_gradient">iOS · мягкий градиент</option><option value="material">Material · чистый glyph</option><option value="fluent">Fluent · многослойный</option><option value="outline">Тонкий outline</option><option value="solid">Контрастный solid</option><option value="glass">Glass / translucent</option><option value="clay">Clay 3D</option><option value="pixel">Pixel art</option><option value="fantasy">Fantasy RPG</option><option value="scifi">Sci-fi HUD</option><option value="cartoon">Cartoon / sticker</option><option value="realistic_item">Реалистичный игровой предмет</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Количество</span><select id="uxuiIconCount"><option value="1">1 иконка</option><option value="6">Набор из 6</option><option value="12">Набор из 12</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Форма</span><select id="uxuiIconShape"><option value="free">Без контейнера</option><option value="rounded_square">Скруглённый квадрат</option><option value="circle">Круг</option><option value="badge">Badge / эмблема</option><option value="hex">Шестиугольник</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Фон</span><select id="uxuiIconBackground"><option value="transparent">Прозрачный PNG</option><option value="solid">Однотонный</option><option value="gradient">Градиент</option></select></div>
+                        <div class="generation-mode-hint" style="grid-column:1/-1; margin-bottom:8px;">Набор создаётся единым листом и автоматически сохраняется также отдельными PNG. Для прозрачного варианта фон удаляется через BiRefNet.</div>
+                    </div>
+                    <div class="uxui-format-card"><span>Формат выбирается под платформу</span><strong id="uxuiFormatValue">16:9 · ≈ 1888 × 1064 px</strong></div>
+
+                    <input id="uxuiFileInput" type="file" accept="image/*" class="hidden">
+                    <div id="uxuiDropZone" class="image-drop-zone uxui-drop-zone" tabindex="0">
+                        <span id="uxuiImageLabel">Необязательный референс: перетащите, нажмите или вставьте Ctrl+V</span>
+                        <img id="uxuiPreview" class="image-drop-preview hidden" alt="UX/UI reference">
+                    </div>
+                    <div id="uxuiFileInfo" class="enhance-file-info"></div>
+                    <div class="uxui-reference-actions">
+                        <button id="btn_uxui_select" class="full-btn secondary">Выбрать референс</button>
+                        <button id="btn_uxui_from_photoshop" class="full-btn secondary action-btn">Из Photoshop</button>
+                        <button id="btn_uxui_clear" class="full-btn secondary full-row hidden">Удалить референс</button>
+                    </div>
+                    <button id="btn_uxui_generate" class="full-btn cta action-btn">Создать UX/UI</button>
+
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="set_uxui"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                        <div id="set_uxui" class="sub-tool-content hidden">
+                            <div class="field-group"><span style="font-size:12px;">Модель</span><select id="uxuiModel"><option value="turbo">Turbo</option><option value="krea2">Krea 2</option></select></div>
+                            <div class="setting-row"><span class="setting-label">Качество</span><input type="range" class="setting-slider" min="1" max="3" step="1" value="2" id="slider_uxui_megapixels"><span class="setting-value" id="val_uxui_megapixels">2 MP</span></div>
+                            <div class="field-group"><span style="font-size:12px;">Seed</span><input type="text" id="uxuiSeed" inputmode="numeric" spellcheck="false"></div>
+                            <div style="font-size:10px; color:#8abf92; margin:-5px 0 10px;">Prompt Enhance включён всегда и настроен специально под интерфейсы.</div>
+                            <hr style="border-color:#333; margin:10px 0;">
+                            <div class="hotkey-row"><span class="hotkey-label">Создать</span><input type="text" class="hotkey-input" id="hk_uxui_generate" data-btn="btn_uxui_generate" data-section="sec_uxui" value="Не назначена" readonly></div>
+                        </div>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_uxui"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_uxui" class="sub-tool-content hidden"><b>Веб-сайт:</b> лендинги, магазины, SaaS, портфолио и админ-панели. В «Визуальном стиле» есть готовые конструкции: Neobrutalism, Bento Grid, Swiss, Editorial, SaaS Conversion и другие.<br><br><b>Приложение:</b> мобильные, планшетные и desktop-интерфейсы.<br><br><b>Игра:</b> меню, HUD, инвентарь, персонажи, навыки, карты и магазины.<br><br><b>Иконки:</b> одиночные иконки и согласованные наборы из 6 или 12 для сайтов, приложений и игр. Набор сохраняется листом и отдельными PNG в <b>download/UX_UI/Icons</b>. Для «Прозрачного PNG» приложение дополнительно запускает BiRefNet.<br><br>Референс необязателен. Без него создаётся дизайн с нуля; с ним приложение использует img2img, анализирует стиль, цвета и структуру. Вход больше 1 MP уменьшается только для ComfyUI. Формат подбирается автоматически под платформу и тип результата. Обычный UX/UI сохраняется в <b>download/UX_UI</b> и открывается отдельным документом Photoshop.</div>
+                    </div>
+                </div>
+            </div>
+            <!-- A+ Content -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_aplus"><span>🛍️ A+ Content</span><span class="arrow">▼</span></div>
+                <div id="sec_aplus" class="tool-content">
+                    <div class="radio-group generation-mode-tabs aplus-mode-tabs">
+                        <label><input type="radio" name="aplusMode" value="basic" checked> Basic · 5</label>
+                        <label><input type="radio" name="aplusMode" value="premium"> Premium · 7</label>
+                        <label><input type="radio" name="aplusMode" value="single"> Один модуль</label>
+                    </div>
+                    <div id="aplusModeHint" class="generation-mode-hint">Полный комплект из пяти модулей 970 × 300 px для Basic A+.</div>
+                    <div class="aplus-compliance-note">Текст не запекается в изображения: Amazon рекомендует использовать нативные текстовые поля. Вместе с JPG будет создан файл с планом заголовков, описаний и alt-текста.</div>
+
+                    <input id="aplusFileInput" type="file" accept="image/*" class="hidden">
+                    <div id="aplusDropZone" class="image-drop-zone uxui-drop-zone" tabindex="0">
+                        <span id="aplusImageLabel">Обязательное фото товара: перетащите, нажмите, вставьте Ctrl+V или возьмите из Photoshop</span>
+                        <img id="aplusPreview" class="image-drop-preview hidden" alt="A+ product reference">
+                    </div>
+                    <div id="aplusFileInfo" class="enhance-file-info"></div>
+                    <div class="aplus-reference-actions">
+                        <button id="btn_aplus_select" class="full-btn secondary">Выбрать товар</button>
+                        <button id="btn_aplus_from_photoshop" class="full-btn secondary action-btn">Из Photoshop</button>
+                        <button id="btn_aplus_clear" class="full-btn secondary full-row hidden">Удалить товар</button>
+                    </div>
+
+                    <div class="uxui-options-grid">
+                        <div class="field-group"><span style="font-size:12px;">Название товара</span><input id="aplusProductName" type="text" placeholder="Например: Linen Wall Art"></div>
+                        <div class="field-group"><span style="font-size:12px;">Категория</span><input id="aplusCategory" type="text" placeholder="Дом и интерьер"></div>
+                        <div class="field-group"><span style="font-size:12px;">Аудитория</span><input id="aplusAudience" type="text" placeholder="Для кого товар"></div>
+                        <div class="field-group"><span style="font-size:12px;">Язык copy-плана</span><select id="aplusLanguage"><option value="ru">Русский</option><option value="en">English</option></select></div>
+                    </div>
+                    <div class="field-group"><span style="font-size:12px;">Проверенные преимущества</span><textarea id="aplusBenefits" placeholder="По одному на строку. Только реальные преимущества без неподтверждённых обещаний."></textarea></div>
+                    <div class="field-group"><span style="font-size:12px;">Материалы, размеры и факты</span><textarea id="aplusFacts" placeholder="Состав, размеры, комплектация, способ применения и другие подтверждённые данные..."></textarea></div>
+                    <div class="field-group"><span style="font-size:12px;">Вопросы и барьеры покупателя</span><textarea id="aplusObjections" placeholder="Что важно объяснить, чтобы снизить сомнения и возвраты..."></textarea></div>
+                    <div class="field-group"><span style="font-size:12px;">Стиль бренда / дополнительный prompt</span><textarea id="aplusBrandDirection" placeholder="Цвета, настроение, окружение и визуальный характер бренда..."></textarea></div>
+
+                    <div id="aplusSingleOptions" class="uxui-options-grid hidden">
+                        <div class="field-group"><span style="font-size:12px;">Тип модуля</span><select id="aplusSingleModule"><option value="hero">Hero / первое впечатление</option><option value="lifestyle">Товар в использовании</option><option value="benefit">Главное преимущество</option><option value="detail">Детали и материалы</option><option value="howto">Как использовать</option><option value="comparison">Линейка / сравнение</option><option value="brand">История бренда</option></select></div>
+                        <div class="field-group"><span style="font-size:12px;">Стандарт</span><select id="aplusSingleStandard"><option value="basic">Basic 970 × 300</option><option value="premium">Premium 1464 × 600</option></select></div>
+                    </div>
+
+                    <div class="aplus-package-summary"><span>На выходе</span><strong id="aplusOutputSummary">5 JPG · 970 × 300 · Copy.txt</strong></div>
+                    <button id="btn_aplus_generate" class="full-btn cta action-btn">Создать Basic A+ комплект</button>
+
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="set_aplus"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                        <div id="set_aplus" class="sub-tool-content hidden">
+                            <div class="field-group"><span style="font-size:12px;">Модель</span><select id="aplusModel"><option value="turbo">Turbo</option><option value="krea2">Krea 2</option></select></div>
+                            <div class="setting-row"><span class="setting-label">Рендер</span><input type="range" class="setting-slider" min="1" max="3" step="1" value="2" id="slider_aplus_megapixels"><span class="setting-value" id="val_aplus_megapixels">2 MP</span></div>
+                            <div class="field-group"><span style="font-size:12px;">Базовый seed</span><input type="text" id="aplusSeed" inputmode="numeric" spellcheck="false"></div>
+                            <div style="font-size:10px; color:#8abf92; margin:-5px 0 10px;">Каждый следующий модуль получает seed + 1. Финальные JPG автоматически приводятся к размеру Amazon и ограничиваются 2 МБ.</div>
+                            <hr style="border-color:#333; margin:10px 0;">
+                            <div class="hotkey-row"><span class="hotkey-label">Создать</span><input type="text" class="hotkey-input" id="hk_aplus_generate" data-btn="btn_aplus_generate" data-section="sec_aplus" value="Не назначена" readonly></div>
+                        </div>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_aplus"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_aplus" class="sub-tool-content hidden"><b>Basic · 5:</b> создаёт последовательность Hero → Lifestyle → Преимущество → Детали/применение → История бренда. Каждый файл имеет размер 970 × 300 px.<br><br><b>Premium · 7:</b> добавляет более подробные модули применения и линейки товара. Размер каждого файла — 1464 × 600 px.<br><br><b>Один модуль:</b> позволяет отдельно переделать нужный кадр под Basic или Premium.<br><br>Фото товара обязательно и временно ограничивается 1 MP для ComfyUI. Генератор сохраняет узнаваемость товара, не добавляет цены, скидки, QR-коды, гарантии, рейтинги или сравнения с конкурентами. JPG сохраняются в отдельный комплект внутри <b>download/A_Plus_Content</b> и открываются отдельными документами Photoshop. Перед публикацией обязательно проверьте точность товара и всех фактов.</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Expand Background -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_expand"><span>📐 Expand Background</span><span class="arrow">▼</span></div>
+                <div id="sec_expand" class="tool-content">
+                    <div class="setting-row qwen-steps" data-qwen-fixed="true"><span class="setting-label">Шаги Qwen</span><input type="range" id="qwenStepsExpand" class="setting-slider qwen-step-slider" min="1" max="80" step="1" value="25"><span id="val_qwenStepsExpand" class="setting-value">25</span></div>
+                    <div class="field-group"><textarea id="expandPrompt" placeholder="Как продолжить фон...">Extend the background naturally</textarea></div>
+                    <button id="btn_expand" class="full-btn secondary action-btn">Дорисовать края</button>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="set_expand"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                        <div id="set_expand" class="sub-tool-content hidden">
+                            <div class="expand-direction-grid">
+                                <label class="expand-top">↑<br><input id="expandTop" type="number" min="0" step="1" value="200"><br>px</label>
+                                <label class="expand-left">←<br><input id="expandLeft" type="number" min="0" step="1" value="400"><br>px</label>
+                                <div class="expand-center">□</div>
+                                <label class="expand-right">→<br><input id="expandRight" type="number" min="0" step="1" value="0"><br>px</label>
+                                <label class="expand-bottom">↓<br><input id="expandBottom" type="number" min="0" step="1" value="30"><br>px</label>
+                            </div>
+                            <hr style="border-color: #333; margin: 10px 0;">
+                            <div class="hotkey-row"><span class="hotkey-label">Бинд</span><input type="text" class="hotkey-input" id="hk_expand" data-btn="btn_expand" data-section="sec_expand" value="Не назначена" readonly></div>
+                        </div>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_expand"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_expand" class="sub-tool-content hidden">Расширяет холст и дорисовывает недостающие края с помощью Outpainting.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upscale -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_upscale"><span>💎 Upscale</span><span class="arrow">▼</span></div>
+                <div id="sec_upscale" class="tool-content">
+                    <div class="radio-group" style="margin-bottom:10px;">
+                        <label><input type="radio" name="upscaleMode" value="tasks" checked> Задачи на апскейл</label>
+                        <label><input type="radio" name="upscaleMode" value="ai"> ×4 Upscale</label>
+                    </div>
+
+                    <div id="upscaleTaskUI">
+                        <input id="upscaleFileInput" type="file" accept="image/*" class="hidden">
+                        <div id="upscaleDropZone" class="image-drop-zone" tabindex="0">
+                            <span id="upscaleImageLabel">Перетащите изображение, выберите файл или вставьте Ctrl+V</span>
+                            <img id="upscalePreview" class="image-drop-preview hidden" alt="Изображение для задачи на апскейл">
+                        </div>
+                        <button id="btn_upscale_select" class="full-btn secondary" style="margin-bottom:8px;">Выбрать изображение</button>
+                        <button id="btn_upscale_from_selection" class="full-btn secondary action-btn" style="margin-bottom:8px;">📋 Вставить выделение Photoshop</button>
+                        <button id="btn_topaz_from_layer" class="full-btn secondary" style="margin-bottom:8px;">Вставить слой Photoshop</button>
+                        <button id="btn_upscale_clear" class="full-btn secondary hidden" style="margin-bottom:9px;">Удалить изображение</button>
+                        <div id="upscaleFileInfo" style="color:#8abf92; font-size:11px; margin:-2px 0 10px;"></div>
+
+                        <button id="btn_upscale" class="full-btn cta action-btn">Загрузить в Topaz</button>
+                        <div id="topazPanel"></div>
+
+                        <div class="sub-tool-section">
+                            <div class="sub-tool-header" data-target="set_upscale"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                            <div id="set_upscale" class="sub-tool-content hidden">
+                                <div class="hotkey-row"><span class="hotkey-label">Бинд</span><input type="text" class="hotkey-input" id="hk_upscale" data-btn="btn_upscale" data-section="sec_upscale" data-radio-name="upscaleMode" data-radio="tasks" value="Не назначена" readonly></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="upscaleAIUI" class="hidden">
+                        <input id="aiUpscaleFileInput" type="file" accept="image/*" class="hidden">
+                        <div id="aiUpscaleDropZone" class="image-drop-zone" tabindex="0">
+                            <span id="aiUpscaleImageLabel">Перетащите изображение, нажмите для выбора или вставьте Ctrl+V</span>
+                            <img id="aiUpscalePreview" class="image-drop-preview hidden" alt="Изображение для ×4 Upscale">
+                        </div>
+                        <button id="btn_ai_upscale_select" class="full-btn secondary" style="margin-bottom:8px;">Выбрать изображение</button>
+                        <button id="btn_ai_upscale_from_layer" class="full-btn secondary action-btn" style="margin-bottom:8px;">🖼️ Вставить слой Photoshop</button>
+                        <button id="btn_ai_upscale_all_visible" class="full-btn secondary action-btn" style="margin-bottom:8px;">⚡ Авто: все видимые слои</button>
+                        <button id="btn_ai_upscale_from_selection" class="full-btn secondary action-btn" style="margin-bottom:8px;">📋 Вставить выделение Photoshop</button>
+                        <button id="btn_ai_upscale_clear" class="full-btn secondary hidden" style="margin-bottom:9px;">Удалить изображение</button>
+                        <div id="aiUpscaleFileInfo" style="color:#8abf92; font-size:11px; margin:-2px 0 7px;"></div>
+                        <div id="aiUpscaleResizeNotice" style="color:#e3b758; font-size:10px; margin:0 0 10px;">Перед обработкой изображение будет подогнано ровно до 1 MP с сохранением пропорций.</div>
+                        <button id="btn_ai_upscale" class="full-btn cta action-btn">Upscale ×4</button>
+
+                        <div class="sub-tool-section">
+                            <div class="sub-tool-header" data-target="set_ai_upscale"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                            <div id="set_ai_upscale" class="sub-tool-content hidden">
+                                <div class="setting-row"><span class="setting-label">Увеличение</span><span class="setting-value" id="val_seedvr2_scale">×4</span></div>
+                                <input type="range" id="slider_seedvr2_scale" min="1" max="4" step="1" value="4">
+                                <hr style="border-color:#333; margin:10px 0;">
+                                <div class="hotkey-row"><span class="hotkey-label">Бинд</span><input type="text" class="hotkey-input" id="hk_ai_upscale" data-btn="btn_ai_upscale" data-section="sec_upscale" data-radio-name="upscaleMode" data-radio="ai" value="Не назначена" readonly></div>
+                                <div class="hotkey-row"><span class="hotkey-label">Все слои</span><input type="text" class="hotkey-input" id="hk_ai_upscale_all" data-btn="btn_ai_upscale_all_visible" data-section="sec_upscale" data-radio-name="upscaleMode" data-radio="ai" value="Не назначена" readonly></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_upscale"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_upscale" class="sub-tool-content hidden">«Задачи на апскейл» передают оригинал в Topaz на ПК-обработчике. После подготовки выберите настройки и запустите апскейл. Результат отправляется файлом в Избранное Telegram на сервере. «×4 Upscale» обрабатывает выбранный файл в ComfyUI через SeedVR2: перед отправкой изображение приводится ровно к 1 MP, а после обработки добавляется в Photoshop и сохраняется в Upscales. «Вставить слой Photoshop» обрабатывает активный слой, возвращает результат точно на место, переносит маску, скрывает исходник и помещает оба слоя в папку в самом низу документа. «Авто: все видимые слои» заранее фиксирует подходящие видимые слои и последовательно апскейлит их сверху вниз. Уже созданные папки Upscale повторно не обрабатываются.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vectorize -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_vector"><span>🌀 Vectorize</span><span class="arrow">▼</span></div>
+                <div id="sec_vector" class="tool-content">
+                    <input id="vectorFileInput" type="file" accept="image/*" class="hidden">
+                    <div id="vectorDropZone" class="image-drop-zone" tabindex="0">
+                        <span id="vectorImageLabel">Перетащите изображение, нажмите для выбора или вставьте Ctrl+V. Без изображения будет взят активный слой Photoshop.</span>
+                        <img id="vectorPreview" class="image-drop-preview hidden" alt="Изображение для векторизации">
+                    </div>
+                    <button id="btn_vector_select" class="full-btn secondary" style="margin-bottom:8px;">Выбрать изображение</button>
+                    <button id="btn_vector_from_selection" class="full-btn secondary action-btn" style="margin-bottom:8px;">📋 Вставить выделение Photoshop</button>
+                    <button id="btn_vector_clear" class="full-btn secondary hidden" style="margin-bottom:9px;">Использовать активный слой Photoshop</button>
+                    <div id="vectorFileInfo" style="color:#8abf92; font-size:11px; margin:-2px 0 8px;"></div>
+                    <div id="vectorResizeNotice" style="color:#e3b758; font-size:10px; margin:0 0 10px;">Изображения больше 2 MP перед векторизацией автоматически уменьшаются до 2 MP.</div>
+                    <button id="btn_vector" class="full-btn secondary action-btn">Векторизовать</button>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="set_vector"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                        <div id="set_vector" class="sub-tool-content hidden">
+                            <div class="field-group"><span>Режим</span><select id="vectorMode"><option value="quantized">Quantized — сложная графика</option><option value="stable">Stable — гладкие иллюстрации</option></select></div>
+                            <div class="setting-row"><span class="setting-label">Палитра</span><input type="range" id="vectorColors" class="setting-slider" min="4" max="256" step="1" value="64"><span id="val_vectorColors" class="setting-value">64</span></div>
+                            <div class="setting-row"><span class="setting-label">Лимит</span><input type="range" id="vectorMaxMegapixels" class="setting-slider" min="0.1" max="64" step="0.1" value="2"><span id="val_vectorMaxMegapixels" class="setting-value">2 MP</span></div>
+                            <div class="field-group"><span>Префикс SVG</span><input id="vectorFilePrefix" type="text" value="vector_quantized" maxlength="80"></div>
+                            <div style="font-size:10px; color:#888; margin-bottom:8px;">Quantized сохраняет палитру сложного изображения. Stable лучше сглаживает простые иллюстрации. Лимит уменьшает большие входы без увеличения маленьких.</div>
+                            <hr style="border-color:#333; margin:10px 0;">
+                            <div class="hotkey-row"><span class="hotkey-label">Бинд</span><input type="text" class="hotkey-input" id="hk_vector" data-btn="btn_vector" data-section="sec_vector" value="Не назначена" readonly></div>
+                        </div>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_vector"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_vector" class="sub-tool-content hidden">Можно вставить файл, вставить выделение из Photoshop или ничего не добавлять — тогда приложение возьмёт видимые пиксели активного слоя. Временная копия ограничивается выбранным числом мегапикселей; исходный PSD/PSB и файл не меняются. Прозрачность сохраняется в SVG.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mockups -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_mock"><span>🖼️ Mockups</span><span class="arrow">▼</span></div>
+                <div id="sec_mock" class="tool-content">
+                    <button id="btn_save_mockup_png" class="full-btn secondary" style="margin-bottom: 10px;">💾 Save PNG & Close</button>
+                    <div class="radio-group" name="mockupMode">
+                        <label><input type="radio" name="mockupMode" value="library" checked> Library PSD</label>
+                        <label><input type="radio" name="mockupMode" value="ai"> AI Generate</label>
+                    </div>
+                    <div id="mockupLibraryUI">
+                        <div class="mockup-nav">
+                            <button id="btn_mockup_back" class="full-btn secondary" style="width: auto; padding: 4px 8px; display: none;">← Назад</button>
+                            <span id="mockup_path_label" style="font-size: 12px; color: #aaa; flex-grow: 1; margin-left: 10px;"></span>
+                            <button id="btn_refresh_mockups" class="full-btn secondary" style="width: auto; padding: 4px 8px; font-size: 11px;">Обновить</button>
+                        </div>
+                        <div id="mockupGrid" class="mockup-grid"></div>
+                    </div>
+                    <div id="mockupAIPromptUI" class="hidden">
+                        <div style="font-size:11px; color:#8abf92; margin-bottom:8px;">Промт формируется автоматически. Параметры AI Generate настраиваются отдельно ниже.</div>
+                        <div class="radio-group generation-mode-tabs" id="mockupAiKindTabs">
+                            <label><input type="radio" name="mockupAiKind" value="wallpaper" checked> Обои</label>
+                            <label><input type="radio" name="mockupAiKind" value="artwork"> Картины</label>
+                        </div>
+                        <div id="mockupWallpaperOptions">
+                        <div class="field-group"><span style="font-size:12px;">Дополнительный prompt</span><textarea id="mockupAdditionalPrompt" placeholder="Например: добавить большое окно справа, современный минималистичный стиль..."></textarea></div>
+                        <div class="field-group">
+                            <span style="font-size:12px;">Тип помещения</span>
+                            <select id="mockupRoom">
+                                <option value="a boy's children's bedroom">Детская комната мальчика</option>
+                                <option value="a girl's children's bedroom">Детская комната девочки</option>
+                                <option value="a teenage boy's bedroom">Подростковая комната мальчика</option>
+                                <option value="a teenage girl's bedroom">Подростковая комната девочки</option>
+                                <option value="a neutral children's playroom">Детская игровая</option>
+                                <option value="a calm adult bedroom">Спальная</option>
+                                <option value="a stylish living room">Гостиная</option>
+                                <option value="a refined dining room">Столовая</option>
+                                <option value="a modern kitchen">Кухня</option>
+                                <option value="a clean bathroom">Ванная</option>
+                                <option value="an entrance hall">Прихожая</option>
+                                <option value="a compact home office">Домашний кабинет</option>
+                                <option value="a modern office">Офисная стена</option>
+                                <option value="a bright walk-in closet">Гардеробная</option>
+                                <option value="a boutique hotel suite">Номер отеля</option>
+                                <option value="a cozy cafe or restaurant">Кафе или ресторан</option>
+                                <option value="a premium retail showroom">Шоурум или бутик</option>
+                                <option value="a spacious stairwell landing">Лестничный холл</option>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <span style="font-size:12px;">Стиль интерьера</span>
+                            <select id="mockupInteriorStyle">
+                                <option value="contemporary interior with clean modern details">Современный</option>
+                                <option value="warm Scandinavian interior with natural materials">Скандинавский</option>
+                                <option value="quiet Japandi interior with restrained natural forms">Japandi</option>
+                                <option value="soft contemporary classic interior with elegant details">Современная классика</option>
+                                <option value="refined boutique hotel style with premium materials">Премиальный</option>
+                                <option value="light Mediterranean interior with relaxed natural character">Средиземноморский</option>
+                                <option value="mid-century modern interior with expressive furniture silhouettes">Mid-century</option>
+                                <option value="minimal loft interior with carefully balanced industrial details">Мягкий лофт</option>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <span style="font-size:12px;">Композиция мокапа</span>
+                            <select id="mockupComposition">
+                                <option value="full-room composition with a wide, clean and unobstructed white feature wall; leave generous free wall area for placing the design in Photoshop">Полная комната — больше места на стене</option>
+                                <option value="balanced mid-shot interior composition; the clean white feature wall is the clear focal area while furniture frames it without covering it">Средний план — стена в центре</option>
+                                <option value="wide-angle interior composition with room depth and perspective; the clean white feature wall remains clearly visible and usable">Широкий ракурс — интерьер в контексте</option>
+                                <option value="close architectural view with a large uninterrupted white feature wall filling most of the frame; leave generous space for the design">Крупный план — максимум стены</option>
+                                <option value="symmetrical centered interior composition with the clean white feature wall positioned exactly in the middle and kept clear">Симметрично — стена по центру</option>
+                                <option value="view from the doorway with clear room depth; the white feature wall stays fully visible and free for the design">Вид от входа — глубина комнаты</option>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <span style="font-size:12px;">Ракурс стены</span>
+                            <select id="mockupWallAngle">
+                                <option value="front-facing elevation; camera perpendicular to the wall, straight geometry and no perspective distortion">Фронтально — ровная стена</option>
+                                <option value="gentle three-quarter view at 10–15 degrees; the main wall stays almost straight and spacious">Лёгкий угол 10–15° — почти ровно</option>
+                                <option value="three-quarter view at 25–35 degrees; the featured main wall remains large and clear">Под углом 25–35° — главная стена</option>
+                                <option value="corner composition at 40–45 degrees; two walls are visible, but the main feature wall is dominant">Угловой вид 40–45° — стена главная</option>
+                                <option value="slightly low eye-level perspective that emphasizes a tall clear feature wall without distortion">Снизу вверх — высокая стена</option>
+                            </select>
+                        </div>
+                        </div>
+                        <div id="mockupArtworkOptions" class="hidden">
+                            <div class="generation-mode-hint" id="mockupArtCountHint">Активный документ Photoshop считается одной картиной. Макет будет показан в одной раме.</div>
+                            <div class="radio-group generation-mode-tabs" id="mockupArtCountTabs">
+                                <label><input type="radio" name="mockupArtCount" value="1" checked> 1 картина</label>
+                                <label><input type="radio" name="mockupArtCount" value="3"> 3 картины</label>
+                            </div>
+                            <div class="field-group"><span style="font-size:12px;">Дополнительный prompt</span><textarea id="mockupArtAdditionalPrompt" placeholder="Например: светлый интерьер, крупная рама, вид немного сбоку..."></textarea></div>
+                            <div class="field-group"><span style="font-size:12px;">Помещение</span><select id="mockupArtRoom">
+                                <option value="a stylish living room">Гостиная</option>
+                                <option value="a calm adult bedroom">Спальня</option>
+                                <option value="a refined dining room">Столовая</option>
+                                <option value="a compact home office or creative studio">Кабинет или студия</option>
+                                <option value="a tasteful children's room">Детская</option>
+                                <option value="a bright entrance hall">Прихожая</option>
+                                <option value="a clean contemporary gallery space">Галерея</option>
+                            </select></div>
+                            <div class="field-group"><span style="font-size:12px;">Стиль интерьера</span><select id="mockupArtInteriorStyle">
+                                <option value="warm Scandinavian interior with natural materials">Скандинавский</option>
+                                <option value="warm organic contemporary interior with wood and tactile textiles">Тёплый органический</option>
+                                <option value="clean modern minimalist interior">Современный минимализм</option>
+                                <option value="soft contemporary classic interior with elegant details">Современная классика</option>
+                                <option value="relaxed coastal interior with light natural textures">Coastal</option>
+                                <option value="refined editorial interior with premium materials">Премиальный editorial</option>
+                            </select></div>
+                            <div id="mockupArtSinglePlacement" class="field-group"><span style="font-size:12px;">Размещение</span><select id="mockupArtPlacementSingle">
+                                <option value="the single framed artwork is leaning naturally on a wooden console or sideboard against the wall">На комоде или консоли</option>
+                                <option value="the single framed artwork is leaning on the floor beside a large window">На полу возле окна</option>
+                                <option value="the single framed artwork is hanging centered on the main wall above low furniture">На стене над мебелью</option>
+                                <option value="one person is naturally holding the single framed artwork toward the camera; hands do not cover the artwork">В руках человека</option>
+                                <option value="the single framed artwork stands alone against a clean wall in a close product setup">Чистый предметный мокап</option>
+                            </select></div>
+                            <div id="mockupArtTriplePlacement" class="field-group hidden"><span style="font-size:12px;">Размещение</span><select id="mockupArtPlacementTriple">
+                                <option value="exactly three equal framed artworks are aligned in one horizontal row above a sofa">Три картины над диваном</option>
+                                <option value="exactly three equal framed artworks are aligned in one horizontal row above the bed headboard">Три картины над кроватью</option>
+                                <option value="exactly three equal framed artworks are aligned above a sideboard or console">Три картины над комодом</option>
+                                <option value="exactly three equal framed artworks are aligned above a dining table">Три картины над столом</option>
+                                <option value="exactly three equal framed artworks form a clean gallery row on an uncluttered wall">Чистая галерейная стена</option>
+                            </select></div>
+                            <div class="field-group"><span style="font-size:12px;">Рама</span><select id="mockupArtFrame">
+                                <option value="thin natural light-oak frames">Светлый дуб</option>
+                                <option value="thin warm walnut frames">Тёмное дерево</option>
+                                <option value="thin matte-black frames">Чёрная рама</option>
+                                <option value="thin matte-white frames">Белая рама</option>
+                                <option value="very thin brushed-brass metal frames">Тонкий металл</option>
+                            </select></div>
+                            <div class="field-group"><span style="font-size:12px;">Паспарту</span><select id="mockupArtMat">
+                                <option value="no mat border; the artwork fills the inner frame area">Без паспарту</option>
+                                <option value="a narrow clean white mat border around each artwork">Узкое белое</option>
+                                <option value="a wide gallery-style white mat border around each artwork">Широкое белое</option>
+                                <option value="a warm ivory mat border around each artwork">Тёплое кремовое</option>
+                            </select></div>
+                            <div class="field-group"><span style="font-size:12px;">Пропорции картины</span><select id="mockupArtOrientation">
+                                <option value="preserve each source artwork or panel's own orientation and aspect ratio exactly; for a three-panel source evaluate each panel separately; do not crop or stretch">Как в исходнике</option>
+                                <option value="portrait-oriented framed artwork with elegant vertical proportions">Вертикальная</option>
+                                <option value="landscape-oriented framed artwork with wide horizontal proportions">Горизонтальная</option>
+                                <option value="square framed artwork with equal sides">Квадратная</option>
+                            </select></div>
+                            <div class="field-group"><span style="font-size:12px;">Композиция и камера</span><select id="mockupArtCamera">
+                                <option value="front-facing eye-level camera with straight frame geometry and minimal perspective distortion">Фронтально — ровная геометрия</option>
+                                <option value="gentle three-quarter camera angle at 10–20 degrees with realistic frame depth">Лёгкий угол 10–20°</option>
+                                <option value="close editorial product shot where the framed artwork is large and clearly readable">Крупный предметный план</option>
+                                <option value="wide lifestyle interior composition with the framed artwork as the clear focal point">Широкий интерьерный кадр</option>
+                                <option value="premium catalog composition with balanced negative space around the framed artwork">Каталожная композиция</option>
+                            </select></div>
+                            <div class="field-group"><span style="font-size:12px;">Освещение</span><select id="mockupArtLighting">
+                                <option value="soft diffused natural daylight with gentle realistic shadows and no glare on the artwork">Мягкий дневной свет</option>
+                                <option value="warm direct morning sunlight with tasteful window shadows; artwork remains fully readable">Солнечные тени</option>
+                                <option value="warm calm evening interior light with realistic dimensional shadows">Тёплый вечерний свет</option>
+                                <option value="clean diffused studio lighting suitable for a premium product catalog">Мягкий студийный свет</option>
+                                <option value="moody directional daylight with controlled contrast; artwork remains clearly visible">Контрастный editorial</option>
+                            </select></div>
+                        </div>
+                    </div>
+                    <div id="mockupAIUI" class="hidden">
+                        <label id="mockupRemoveWallControl" style="display:flex; align-items:center; gap:6px; margin:8px 0;"><input type="checkbox" id="mockupRemoveWall">Удалить белую стену после генерации (Qwen)</label>
+                        <div id="mockupRemoveWallHint" style="font-size:11px; color:#888; margin-bottom:8px;">Стена станет прозрачной; мебель и остальные части интерьера сохранятся. Дизайн будет размещён под интерьером. Исходный мокап добавится скрытым слоем для восстановления лишних вырезов.</div>
+                        <button id="btn_gen_mockup" class="full-btn action-btn">Generate AI Mockup</button>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="set_mock"><span>⚙️ Настройки</span><span class="arrow">▼</span></div>
+                        <div id="set_mock" class="sub-tool-content hidden">
+                            <input type="hidden" id="mockupAiModel" value="krea2">
+                            <div class="generation-mode-hint">Интерьер создаёт Krea 2. Если включено удаление стены, готовый мокап вторым проходом обрабатывает Qwen.</div>
+                    <div class="setting-row qwen-steps hidden" data-qwen-model="mockupAiModel"><span class="setting-label">Шаги обрезки Qwen</span><input type="range" id="qwenStepsMockup" class="setting-slider qwen-step-slider" min="1" max="80" step="1" value="25"><span id="val_qwenStepsMockup" class="setting-value">25</span></div>
+                            <div id="mockupAiModelSettings">
+                                <div id="mockupAiModelSettingsTitle" style="font-size: 11px; color: #4a9eff; margin-bottom: 8px; font-weight: bold;">Параметры Krea 2 img2img</div>
+                                <div class="setting-row"><span class="setting-label">Формат</span><input type="range" class="setting-slider" min="0" max="7" step="1" value="6" id="slider_mockup_ai_aspect"><span class="setting-value" id="val_mockup_ai_aspect">16:9</span></div>
+                                <div id="mockupAiResolutionHint" style="font-size: 11px; color: #888; text-align: right; margin: -6px 0 10px;"></div>
+                                <div class="setting-row"><span class="setting-label">Megapixels</span><input type="range" class="setting-slider" min="1" max="3" step="1" value="3" id="slider_mockup_ai_megapixels"><span class="setting-value" id="val_mockup_ai_megapixels">3 MP</span></div>
+                                <div class="field-group"><span style="font-size:12px;">Seed</span><input type="text" id="mockupAiSeed" inputmode="numeric" spellcheck="false"></div>
+                                <div id="mockupAiPromptEnhanceHint" style="font-size:11px; color:#8abf92;">Prompt Enhance включён всегда: он берёт палитру дизайна для интерьера.</div>
+                            </div>
+                            <hr style="border-color: #333; margin: 10px 0;">
+                            <div class="hotkey-row"><span class="hotkey-label">Бинд (AI)</span><input type="text" class="hotkey-input" id="hk_mock_ai" data-btn="btn_gen_mockup" data-section="sec_mock" data-radio="ai" data-radio-name="mockupMode" value="Не назначена" readonly></div>
+                        </div>
+                    </div>
+                    <div class="sub-tool-section">
+                        <div class="sub-tool-header" data-target="faq_mock"><span>❓ FAQ</span><span class="arrow">▼</span></div>
+                        <div id="faq_mock" class="sub-tool-content hidden"><b>Library PSD:</b> скачивает шаблон, открывает его и вставляет дизайн.<br><br><b>AI Generate → Обои:</b> Krea 2 создаёт интерьер с чистой белой стеной и добавляет исходный дизайн отдельным слоем для ручного размещения. Опция удаления стены запускает Qwen вторым проходом: стена становится прозрачной, а дизайн располагается под интерьером.<br><br><b>AI Generate → Картины:</b> Krea 2 создаёт готовый фотореалистичный мокап с одной или ровно тремя картинами. Для режима «3 картины» расположите три дизайна в активном документе Photoshop слева направо — этот порядок сохраняется в рамах.<br><br>Входные изображения больше 1 MP автоматически уменьшаются только для ComfyUI; исходный документ не меняется. Кнопка Save PNG сохраняет результат в Mockups и закрывает документ.<br><br>Имена: <b>Дизайн__Mockup_001__AI_WALL.png</b>, <b>Дизайн__Mockup_002__AI_ART_1.png</b>, <b>Дизайн__Mockup_003__AI_ART_3.png</b> или <b>Дизайн__Mockup_004__LIB_Шаблон.png</b>. Нумерация общая, поэтому мокапы одного дизайна находятся рядом.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Настройки -->
+            <div class="tool-section">
+                <div class="tool-header" data-target="sec_set"><span>⚙️ Глобальные настройки</span><span class="arrow">▼</span></div>
+                <div id="sec_set" class="tool-content hidden">
+                    <div class="field-group"><span>Модель Qwen</span><select id="qwenPrecision"><option value="int8">qwen_image_2.1_int8</option><option value="bf16">qwen_image_2.1_bf16</option></select></div>
+                    <div style="font-size:11px; color:#888; margin-bottom:10px;">Выбор весов для всех операций Qwen. INT8 использует меньше видеопамяти; BF16 — полную точность.</div>
+                    <div class="krea-lora-card">
+                        <label class="krea-lora-toggle"><span>Detail Enhancer LoRA для Qwen</span><input type="checkbox" id="qwenDetailLoraEnabled" checked></label>
+                        <div id="qwenDetailLoraControls">
+                            <div class="setting-row"><span class="setting-label">Сила</span><input type="range" class="setting-slider" id="qwenDetailLoraStrength" min="0" max="2" step="0.05" value="1"><span class="setting-value" id="qwenDetailLoraStrengthValue">1.00</span></div>
+                            <div class="krea-lora-note">Только для режима «Улучшить картинку». Trigger «Enhance this image» добавляется автоматически. Документированная сила — 1.0.</div>
+                        </div>
+                    </div>
+                    <div class="field-group"><span>Модель Krea 2</span><select id="krea2Model"><option value="fp8">krea2_turbo_fp8_scaled</option><option value="bf16">krea2_turbo_bf16</option><option value="muse">museByStableYogi_v35Int8Extended</option><option value="kreation">kreation_variant3_mxfp8</option></select></div>
+                    <div style="font-size:11px; color:#888; margin-bottom:10px;">Выбор весов применяется ко всем операциям Krea 2. По умолчанию используется быстрый FP8.</div>
+                    <div class="krea-lora-card">
+                        <label class="krea-lora-toggle"><span>Использовать LoRA Krea 2</span><input type="checkbox" id="krea2LoraEnabled"></label>
+                        <div id="krea2LoraControls" class="hidden">
+                            <div class="field-group"><span>Стиль LoRA</span><select id="krea2Lora"></select></div>
+                            <div class="setting-row"><span class="setting-label">Сила</span><input type="range" class="setting-slider" id="krea2LoraStrength" min="0" max="2" step="0.05" value="1"><span class="setting-value" id="krea2LoraStrengthValue">1.00</span></div>
+                            <div id="krea2LoraTrigger" class="krea-lora-note"></div>
+                            <div id="krea2LoraPreviews" class="krea-lora-previews"></div>
+                            <div id="krea2LoraSource" class="krea-lora-note"></div>
+                        </div>
+                    </div>
+                    <div class="field-group"><span style="font-size:12px;">ComfyUI IP (порт 8188)</span><input type="text" id="serverIP" placeholder="127.0.0.1:8188" value="127.0.0.1:8188"></div>
+                    <div class="field-group"><span style="font-size:12px;">Текстовый enhancer</span><select id="geminiEnhancerModel"><option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option><option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite</option><option value="gemini-3.8-flash">Gemini 3.8 Flash</option><option value="gemini-3.6-flash">Gemini 3.6 Flash</option></select></div>
+                    <div class="setting-row"><span class="setting-label">Фейд маски</span><input type="range" class="setting-slider" id="slider_enhance_edge_fade" min="1" max="25" step="1" value="5"><span class="setting-value fade-mask-value"><input id="input_enhance_edge_fade" type="number" min="1" max="25" step="1" value="5" aria-label="Процент фейда маски">%</span></div>
+                    <div class="field-group"><span style="font-size:12px;">Mockup Server IP (порт 8080)</span><input type="text" id="mockupIP" placeholder="127.0.0.1:8080" value="127.0.0.1:8080"></div>
+                    <div class="field-group hub-field" style="border:2px solid #4a9eff; padding:8px; border-radius:8px; margin-bottom:12px;">
+                        <span style="font-size:13px; color:#4a9eff; font-weight:bold;">🔗 Hub IP для чата (порт 3003)</span>
+                        <input type="text" id="hubIP" placeholder="127.0.0.1:3003" value="127.0.0.1:3003" style="font-size:14px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="stickyActionRow" class="sticky-action-row hidden">
+            <button id="stickyActionBtn" class="full-btn cta" type="button"></button>
+        </div>
+
+        <!-- ★ STATUS BAR + CANCEL (fixed bottom, never scrolls) -->
+        <div class="status-bar-row">
+            <div class="status-bar" id="statusBar">ComfyFloatBar загружен</div>
+            <button id="cancelBtn" class="cancel-btn">✕ Отмена</button>
+        </div>
+    </div>
+
+    <div id="krea2PreviewOverlay" class="krea-preview-overlay hidden" role="dialog" aria-modal="true" aria-label="Увеличенный пример LoRA">
+        <button id="krea2PreviewClose" type="button" aria-label="Закрыть">×</button>
+        <img id="krea2PreviewImage" alt="">
+        <div id="krea2PreviewCaption" class="krea-preview-caption"></div>
+    </div>
+
+    <!-- ★ SETUP WIZARD — first-time overlay (nickname only, no skip) -->
+    <div id="setupOverlay" class="setup-overlay hidden">
+        <div class="setup-card">
+            <div class="setup-title">👋 Добро пожаловать!</div>
+            <div class="setup-subtitle">Введите никнейм для работы в чате</div>
+            <div class="setup-field">
+                <label>Ваш никнейм</label>
+                <input type="text" id="setupNickname" placeholder="Введите имя..." maxlength="20" autofocus>
+            </div>
+            <button id="setupStartBtn" class="setup-btn disabled">Начать работу →</button>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

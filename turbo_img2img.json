@@ -1,0 +1,301 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "z-image-turbo-gemini-img2img",
+      "images": [
+        "30:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Сохранить изображение"
+    }
+  },
+  "17": {
+    "inputs": {
+      "image": "example.png [input]"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Загрузить изображение"
+    }
+  },
+  "49": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 3,
+      "multiple": 8
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Выбор разрешения"
+    }
+  },
+  "30:19": {
+    "inputs": {
+      "value": "Recreate this image faithfully with similar composition, mood, and style."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Text String (User Instructions)"
+    }
+  },
+  "30:18": {
+    "inputs": {
+      "value": "You are an expert visual analyst and prompt engineer for Z-Image image-to-image generation.\n\nAnalyze the provided reference image and convert it into one highly effective English image-generation prompt optimized for Z-Image.\n\nPreserve the core visual content of the image: main subject, composition, camera angle, perspective, environment, pose, expression, lighting, color palette, materials, mood, and overall artistic style.\n\nIf the user provides extra instructions, apply them while keeping the original image recognizable unless the user explicitly asks for major changes.\n\nWrite the prompt in clear natural language. Keep spatial relationships explicit and unambiguous. Do not invent unrelated objects, characters, or scenery unless the image or user instructions imply them.\n\nOutput ONLY one cohesive final English prompt paragraph ready to be sent directly into Z-Image. No explanations, no markdown, no bullet points, no JSON, no headings, no quotation marks.\n\nUSER INSTRUCTIONS:\n"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Gemini Vision System Prompt"
+    }
+  },
+  "30:50": {
+    "inputs": {
+      "string_a": [
+        "30:18",
+        0
+      ],
+      "string_b": [
+        "30:19",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "System + User Instructions"
+    }
+  },
+  "30:16": {
+    "inputs": {
+      "prompt": [
+        "30:50",
+        0
+      ],
+      "operation_mode": "generate_text",
+      "model_name": "gemini-3.1-flash-lite",
+      "temperature": 0.2,
+      "seed": 0,
+      "sequential_generation": false,
+      "batch_count": 1,
+      "aspect_ratio": "none",
+      "api_provider": "gemini",
+      "external_api_key": "",
+      "chat_mode": false,
+      "clear_history": false,
+      "structured_output": false,
+      "max_images": 1,
+      "max_output_tokens": 1024,
+      "use_random_seed": false,
+      "api_call_delay": 0,
+      "Update Models List": null,
+      "Verify API Key": null,
+      "api_key_status": "API key not verified",
+      "images": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "IFGeminiNode",
+    "_meta": {
+      "title": "Gemini Vision Prompt Enhancer"
+    }
+  },
+  "30:24": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Boolean (Gemini Vision Enhance?)"
+    }
+  },
+  "30:21": {
+    "inputs": {
+      "switch": [
+        "30:24",
+        0
+      ],
+      "on_false": [
+        "30:19",
+        0
+      ],
+      "on_true": [
+        "30:16",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Gemini Vision ON/OFF"
+    }
+  },
+  "30:20": {
+    "inputs": {
+      "source": [
+        "30:21",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview Final Prompt"
+    }
+  },
+  "30:51": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Загрузить CLIP"
+    }
+  },
+  "30:29": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Загрузить VAE"
+    }
+  },
+  "30:28": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Загрузить модель диффузии"
+    }
+  },
+  "30:11": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "30:28",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "Выборка модели AuraFlow"
+    }
+  },
+  "30:27": {
+    "inputs": {
+      "text": [
+        "30:20",
+        0
+      ],
+      "clip": [
+        "30:51",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Кодирование текста CLIP (Запрос)"
+    }
+  },
+  "30:33": {
+    "inputs": {
+      "conditioning": [
+        "30:27",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Обнуление кондиционирования"
+    }
+  },
+  "30:40": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "49",
+        0
+      ],
+      "height": [
+        "49",
+        1
+      ],
+      "crop": "disabled",
+      "image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Scale Image"
+    }
+  },
+  "30:41": {
+    "inputs": {
+      "pixels": [
+        "30:40",
+        0
+      ],
+      "vae": [
+        "30:29",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "30:3": {
+    "inputs": {
+      "seed": 1064458228078039,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 0.75,
+      "model": [
+        "30:11",
+        0
+      ],
+      "positive": [
+        "30:27",
+        0
+      ],
+      "negative": [
+        "30:33",
+        0
+      ],
+      "latent_image": [
+        "30:41",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "30:8": {
+    "inputs": {
+      "samples": [
+        "30:3",
+        0
+      ],
+      "vae": [
+        "30:29",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Декодировать VAE"
+    }
+  }
+}

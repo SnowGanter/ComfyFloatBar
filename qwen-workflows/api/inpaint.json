@@ -1,0 +1,225 @@
+{
+  "qwen_model": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "qwen_image_2.1_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "qwen_clip": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    }
+  },
+  "qwen_vae": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_2.1_vae_bf16.safetensors"
+    }
+  },
+  "qwen_cache": {
+    "class_type": "QwenImage21Cache",
+    "inputs": {
+      "model": [
+        "qwen_control_apply",
+        0
+      ],
+      "device": "auto",
+      "dtype": "default"
+    }
+  },
+  "qwen_encode": {
+    "class_type": "TextEncodeQwenImage21",
+    "inputs": {
+      "clip": [
+        "qwen_clip",
+        0
+      ],
+      "prompt": "Reconstruct the masked area of this image. A restored scene matching its surroundings. Match the surrounding composition, colors, materials, lighting and visual style.",
+      "negative_prompt": "",
+      "resolution": 0,
+      "images.image_1": [
+        "qwen_input_1_rgba",
+        0
+      ]
+    }
+  },
+  "qwen_sample": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "qwen_cache",
+        0
+      ],
+      "positive": [
+        "qwen_encode",
+        0
+      ],
+      "negative": [
+        "qwen_encode",
+        1
+      ],
+      "latent_image": [
+        "qwen_encode",
+        2
+      ],
+      "seed": 2524717918580,
+      "steps": 25,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1
+    }
+  },
+  "qwen_decode": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "qwen_sample",
+        0
+      ],
+      "vae": [
+        "qwen_vae",
+        0
+      ]
+    }
+  },
+  "qwen_save": {
+    "class_type": "SaveImageAdvanced",
+    "inputs": {
+      "images": [
+        "qwen_composite",
+        0
+      ],
+      "filename_prefix": "ComfyFloatBar/Qwen21",
+      "format": "png",
+      "format.bit_depth": "8-bit",
+      "format.input_color_space": "sRGB"
+    }
+  },
+  "qwen_input_1": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "input.png"
+    }
+  },
+  "qwen_input_1_rgba": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": [
+        "qwen_input_1",
+        0
+      ],
+      "alpha": [
+        "qwen_input_1",
+        1
+      ]
+    }
+  },
+  "qwen_mask": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "mask.png"
+    }
+  },
+  "qwen_control_edges": {
+    "class_type": "Canny",
+    "inputs": {
+      "image": [
+        "qwen_input_1",
+        0
+      ],
+      "low_threshold": 0.25,
+      "high_threshold": 0.65
+    }
+  },
+  "qwen_control_patch": {
+    "class_type": "ModelPatchLoader",
+    "inputs": {
+      "name": "qwen_image_2.1_fun_controlnet_union_int8_convrot.safetensors"
+    }
+  },
+  "qwen_control_apply": {
+    "class_type": "ZImageFunControlnet",
+    "inputs": {
+      "model": [
+        "qwen_model",
+        0
+      ],
+      "model_patch": [
+        "qwen_control_patch",
+        0
+      ],
+      "vae": [
+        "qwen_vae",
+        0
+      ],
+      "strength": 0.8,
+      "start_percent": 0,
+      "end_percent": 1,
+      "image": [
+        "qwen_control_edges",
+        0
+      ],
+      "inpaint_image": [
+        "qwen_input_1",
+        0
+      ],
+      "mask": [
+        "qwen_mask",
+        1
+      ]
+    }
+  },
+  "qwen_size": {
+    "class_type": "GetImageSize",
+    "inputs": {
+      "image": [
+        "qwen_input_1",
+        0
+      ]
+    }
+  },
+  "qwen_resize": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "qwen_decode",
+        0
+      ],
+      "width": [
+        "qwen_size",
+        0
+      ],
+      "height": [
+        "qwen_size",
+        1
+      ],
+      "upscale_method": "lanczos",
+      "crop": "disabled"
+    }
+  },
+  "qwen_composite": {
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": [
+        "qwen_input_1",
+        0
+      ],
+      "source": [
+        "qwen_resize",
+        0
+      ],
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "mask": [
+        "qwen_mask",
+        1
+      ]
+    }
+  }
+}

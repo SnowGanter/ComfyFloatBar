@@ -1,0 +1,10 @@
+{
+  "enabled": false,
+  "python": "C:/Python314/python.exe",
+  "comfyUrl": "http://127.0.0.1:8188",
+  "topazExe": "C:/Program Files/Topaz Labs LLC/Topaz Gigapixel AI/Topaz Gigapixel AI.exe",
+  "telegramExe": "C:/Users/YOUR_NAME/AppData/Roaming/Telegram Desktop/Telegram.exe",
+  "telegramTitle": "Избранное",
+  "telegramAccount": "Ilya",
+  "closeCS2": true
+}

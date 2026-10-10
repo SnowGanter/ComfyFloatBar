@@ -1,0 +1,610 @@
+{
+  "17": {
+    "inputs": {
+      "image": "example.png [input]"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Загрузить изображение (Исходник)"
+    }
+  },
+  "49": {
+    "inputs": {
+      "aspect_ratio": "2:3 (Portrait Photo)",
+      "megapixels": 1,
+      "multiple": 8
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Выбор разрешения"
+    }
+  },
+  "100": {
+    "inputs": {
+      "value": "medium"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Variation Strength (впиши: subtle / medium / strong)"
+    }
+  },
+  "110": {
+    "inputs": {
+      "value": "You are an expert visual analyst and prompt engineer. Analyze the supplied standalone artwork reference. Ignore any accidental border, frame, mat, glare, watermark, interface control or surrounding mockup. Describe a new standalone 2D artwork that belongs to the same coordinated collection. Preserve the exact artistic medium, drawing technique, line quality, texture, color palette, visual era, mood, subject family and overall design language. Variation 1 must remain closest to the reference: keep the main subject and general composition, but change enough small details and object positions to create an original companion piece. Do not request a collage, multiple panels, frame, room or mockup. Output only one concise English generation prompt paragraph. Variation strength: "
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "V1 System Prompt (Closest)"
+    }
+  },
+  "111": {
+    "inputs": {
+      "string_a": [
+        "110",
+        0
+      ],
+      "string_b": [
+        "100",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "V1 Base + Strength"
+    }
+  },
+  "112": {
+    "inputs": {
+      "value": "Create the closest original companion design in the same series."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "V1 User Instructions"
+    }
+  },
+  "113": {
+    "inputs": {
+      "string_a": [
+        "111",
+        0
+      ],
+      "string_b": [
+        "112",
+        0
+      ],
+      "delimiter": "\n"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "V1 System + User"
+    }
+  },
+  "114": {
+    "inputs": {
+      "prompt": [
+        "113",
+        0
+      ],
+      "operation_mode": "generate_text",
+      "model_name": "gemini-3.1-flash-lite",
+      "temperature": 0.2,
+      "seed": 0,
+      "sequential_generation": false,
+      "batch_count": 1,
+      "aspect_ratio": "none",
+      "api_provider": "gemini",
+      "external_api_key": "",
+      "chat_mode": false,
+      "clear_history": false,
+      "structured_output": false,
+      "max_images": 1,
+      "max_output_tokens": 1024,
+      "use_random_seed": false,
+      "api_call_delay": 0,
+      "Update Models List": null,
+      "Verify API Key": null,
+      "api_key_status": "API key not verified",
+      "images": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "IFGeminiNode",
+    "_meta": {
+      "title": "Gemini Vision V1 (Closest)"
+    }
+  },
+  "115": {
+    "inputs": {
+      "text": [
+        "114",
+        0
+      ],
+      "clip": [
+        "30:51",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Encode V1"
+    }
+  },
+  "116": {
+    "inputs": {
+      "seed": 9283746,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 0.72,
+      "model": [
+        "30:11",
+        0
+      ],
+      "positive": [
+        "115",
+        0
+      ],
+      "negative": [
+        "30:33",
+        0
+      ],
+      "latent_image": [
+        "30:41",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler V1 (Denoise 1.0)"
+    }
+  },
+  "117": {
+    "inputs": {
+      "samples": [
+        "116",
+        0
+      ],
+      "vae": [
+        "30:29",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode V1"
+    }
+  },
+  "118": {
+    "inputs": {
+      "filename_prefix": "ComfyFloatBar/series_variation_01",
+      "images": [
+        "117",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Сохранить Variation 01"
+    }
+  },
+  "120": {
+    "inputs": {
+      "value": "You are an expert visual analyst and prompt engineer. Analyze the supplied standalone artwork reference. Ignore any accidental border, frame, mat, glare, watermark, interface control or surrounding mockup. Describe a new standalone 2D artwork that belongs to the same coordinated collection. Preserve the exact artistic medium, drawing technique, line quality, texture, color palette, visual era, mood and subject family. Variation 2 must keep the same recognizable subject and story while noticeably changing the composition, pose, framing, object arrangement or point of view. It must look intentionally designed as a second piece in the same three-artwork set. Do not request a collage, multiple panels, frame, room or mockup. Output only one concise English generation prompt paragraph. Variation strength: "
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "V2 System Prompt (Noticeably Diff)"
+    }
+  },
+  "121": {
+    "inputs": {
+      "string_a": [
+        "120",
+        0
+      ],
+      "string_b": [
+        "100",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "V2 Base + Strength"
+    }
+  },
+  "122": {
+    "inputs": {
+      "value": "Create a second companion design with a noticeably different composition."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "V2 User Instructions"
+    }
+  },
+  "123": {
+    "inputs": {
+      "string_a": [
+        "121",
+        0
+      ],
+      "string_b": [
+        "122",
+        0
+      ],
+      "delimiter": "\n"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "V2 System + User"
+    }
+  },
+  "124": {
+    "inputs": {
+      "prompt": [
+        "123",
+        0
+      ],
+      "operation_mode": "generate_text",
+      "model_name": "gemini-3.1-flash-lite",
+      "temperature": 0.2,
+      "seed": 0,
+      "sequential_generation": false,
+      "batch_count": 1,
+      "aspect_ratio": "none",
+      "api_provider": "gemini",
+      "external_api_key": "",
+      "chat_mode": false,
+      "clear_history": false,
+      "structured_output": false,
+      "max_images": 1,
+      "max_output_tokens": 1024,
+      "use_random_seed": false,
+      "api_call_delay": 0,
+      "Update Models List": null,
+      "Verify API Key": null,
+      "api_key_status": "API key not verified",
+      "images": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "IFGeminiNode",
+    "_meta": {
+      "title": "Gemini Vision V2 (Noticeably Diff)"
+    }
+  },
+  "125": {
+    "inputs": {
+      "text": [
+        "124",
+        0
+      ],
+      "clip": [
+        "30:51",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Encode V2"
+    }
+  },
+  "126": {
+    "inputs": {
+      "seed": 1029384,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 0.85,
+      "model": [
+        "30:11",
+        0
+      ],
+      "positive": [
+        "125",
+        0
+      ],
+      "negative": [
+        "30:33",
+        0
+      ],
+      "latent_image": [
+        "30:41",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler V2 (Denoise 1.0)"
+    }
+  },
+  "127": {
+    "inputs": {
+      "samples": [
+        "126",
+        0
+      ],
+      "vae": [
+        "30:29",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode V2"
+    }
+  },
+  "128": {
+    "inputs": {
+      "filename_prefix": "ComfyFloatBar/series_variation_02",
+      "images": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Сохранить Variation 02"
+    }
+  },
+  "130": {
+    "inputs": {
+      "value": "You are an expert visual analyst and prompt engineer. Analyze the supplied standalone artwork reference. Ignore any accidental border, frame, mat, glare, watermark, interface control or surrounding mockup. Describe a new standalone 2D artwork that belongs to the same coordinated collection. Preserve the exact artistic medium, drawing technique, line quality, texture, color palette, visual era and mood. Variation 3 may introduce a related new scene or supporting objects, but it must still share the same theme and unmistakably belong to the same three-artwork series. Do not request a collage, multiple panels, frame, room or mockup. Output only one concise English generation prompt paragraph. Variation strength: "
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "V3 System Prompt (Most Diff)"
+    }
+  },
+  "131": {
+    "inputs": {
+      "string_a": [
+        "130",
+        0
+      ],
+      "string_b": [
+        "100",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "V3 Base + Strength"
+    }
+  },
+  "132": {
+    "inputs": {
+      "value": "Create a third companion design with the most variation while preserving the series identity."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "V3 User Instructions"
+    }
+  },
+  "133": {
+    "inputs": {
+      "string_a": [
+        "131",
+        0
+      ],
+      "string_b": [
+        "132",
+        0
+      ],
+      "delimiter": "\n"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "V3 System + User"
+    }
+  },
+  "134": {
+    "inputs": {
+      "prompt": [
+        "133",
+        0
+      ],
+      "operation_mode": "generate_text",
+      "model_name": "gemini-3.1-flash-lite",
+      "temperature": 0.2,
+      "seed": 0,
+      "sequential_generation": false,
+      "batch_count": 1,
+      "aspect_ratio": "none",
+      "api_provider": "gemini",
+      "external_api_key": "",
+      "chat_mode": false,
+      "clear_history": false,
+      "structured_output": false,
+      "max_images": 1,
+      "max_output_tokens": 1024,
+      "use_random_seed": false,
+      "api_call_delay": 0,
+      "Update Models List": null,
+      "Verify API Key": null,
+      "api_key_status": "API key not verified",
+      "images": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "IFGeminiNode",
+    "_meta": {
+      "title": "Gemini Vision V3 (Most Diff)"
+    }
+  },
+  "135": {
+    "inputs": {
+      "text": [
+        "134",
+        0
+      ],
+      "clip": [
+        "30:51",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Encode V3"
+    }
+  },
+  "136": {
+    "inputs": {
+      "seed": 5647389,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 0.95,
+      "model": [
+        "30:11",
+        0
+      ],
+      "positive": [
+        "135",
+        0
+      ],
+      "negative": [
+        "30:33",
+        0
+      ],
+      "latent_image": [
+        "30:41",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler V3 (Denoise 1.0)"
+    }
+  },
+  "137": {
+    "inputs": {
+      "samples": [
+        "136",
+        0
+      ],
+      "vae": [
+        "30:29",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode V3"
+    }
+  },
+  "138": {
+    "inputs": {
+      "filename_prefix": "ComfyFloatBar/series_variation_03",
+      "images": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Сохранить Variation 03"
+    }
+  },
+  "30:51": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Загрузить CLIP"
+    }
+  },
+  "30:29": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Загрузить VAE"
+    }
+  },
+  "30:28": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Загрузить модель диффузии"
+    }
+  },
+  "30:11": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "30:28",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "Выборка модели AuraFlow"
+    }
+  },
+  "30:40": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "49",
+        0
+      ],
+      "height": [
+        "49",
+        1
+      ],
+      "crop": "disabled",
+      "image": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Scale Image"
+    }
+  },
+  "30:41": {
+    "inputs": {
+      "pixels": [
+        "30:40",
+        0
+      ],
+      "vae": [
+        "30:29",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode (для всех веток)"
+    }
+  },
+  "30:33": {
+    "inputs": {
+      "conditioning": [
+        "115",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Обнуление кондиционирования (Negative)"
+    }
+  }
+}
